@@ -1,7 +1,8 @@
 import typing
 
-import gym
 import numpy as np
+from gym import spaces
+from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 
 N_AGENTS: int = 10
@@ -10,20 +11,20 @@ N_DELIVERY_POINTS: int = 10
 AREA_DIMENSION: float = 10.0
 
 
-class Warehouse(gym.Env):
+class Warehouse(MultiAgentEnv):
     metadata = {"render.modes": ["human"]}
     reward_range = (-np.inf, -np.inf)
     spec = None
-    action_space = gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
-    observation_space = gym.spaces.Dict(
+    action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
+    observation_space = spaces.Dict(
         {
-            "self_position": gym.spaces.Box(
+            "self_position": spaces.Box(
                 low=AREA_DIMENSION, high=AREA_DIMENSION, shape=(2,), dtype=np.float32,
             ),
-            "pickup_points": gym.spaces.Dict(
+            "pickup_points": spaces.Dict(
                 {
-                    "availability": gym.spaces.MultiBinary(N_PICKUP_POINTS),
-                    "positions": gym.spaces.Box(
+                    "availability": spaces.MultiBinary(N_PICKUP_POINTS),
+                    "positions": spaces.Box(
                         low=AREA_DIMENSION,
                         high=AREA_DIMENSION,
                         shape=(N_PICKUP_POINTS, 2),
@@ -31,10 +32,10 @@ class Warehouse(gym.Env):
                     ),
                 }
             ),
-            "delivery_points": gym.spaces.Dict(
+            "delivery_points": spaces.Dict(
                 {
-                    "availability": gym.spaces.MultiBinary(N_DELIVERY_POINTS),
-                    "positions": gym.spaces.Box(
+                    "availability": spaces.MultiBinary(N_DELIVERY_POINTS),
+                    "positions": spaces.Box(
                         low=AREA_DIMENSION,
                         high=AREA_DIMENSION,
                         shape=(N_DELIVERY_POINTS, 2),
@@ -48,13 +49,22 @@ class Warehouse(gym.Env):
     def __init__(self) -> None:
         super(Warehouse, self).__init__()
 
-    def step(
-        self, action: gym.spaces.Box
-    ) -> typing.Tuple[gym.spaces.Dict, float, bool, typing.Dict[str, str]]:
-        return self.observation_space.sample(), 0.0, False, {}
+    def reset(self) -> typing.Dict[int, spaces.Dict]:
+        return {i: self.observation_space.sample() for i in range(N_AGENTS)}
 
-    def reset(self) -> gym.spaces.Dict:
-        return self.observation_space.sample()
+    def step(
+        self, action_dict: typing.Dict[int, spaces.Box]
+    ) -> typing.Tuple[
+        typing.Dict[int, spaces.Dict],
+        typing.Dict[int, float],
+        typing.Dict[int, bool],
+        typing.Dict[int, typing.Dict[str, str]],
+    ]:
+        observations = {i: self.observation_space.sample() for i in range(N_AGENTS)}
+        rewards = {i: 0.0 for i in range(N_AGENTS)}
+        dones = {i: False for i in range(N_AGENTS)}
+        infos = {i: {"test": "test"} for i in range(N_AGENTS)}
+        return observations, rewards, dones, infos
 
     def render(self, mode: str = "human") -> None:
         if mode != "human":

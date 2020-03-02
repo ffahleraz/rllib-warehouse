@@ -2,10 +2,10 @@ from warehouse import Warehouse
 
 if __name__ == "__main__":
     env = Warehouse()
-    env.reset()
+    observations = env.reset()
     done = False
     while not done:
-        action = env.action_space.sample()
-        observation, reward, done, info = env.step(action=action)
-        print(action)
-        print(observation)
+        action_dict = {1: env.action_space.sample()}
+        observations, rewards, dones, infos = env.step(action_dict=action_dict)
+        print(action_dict)
+        print(observations)
