@@ -49,21 +49,30 @@ class Warehouse(MultiAgentEnv):
     def __init__(self) -> None:
         super(Warehouse, self).__init__()
 
-    def reset(self) -> typing.Dict[int, spaces.Dict]:
-        return {i: self.observation_space.sample() for i in range(N_AGENTS)}
+        self._counter = 1
+
+    def reset(self) -> typing.Dict[str, spaces.Dict]:
+        self._counter = 1
+
+        return {f"{i}": self.observation_space.sample() for i in range(N_AGENTS)}
 
     def step(
-        self, action_dict: typing.Dict[int, spaces.Box]
+        self, action_dict: typing.Dict[str, spaces.Box]
     ) -> typing.Tuple[
-        typing.Dict[int, spaces.Dict],
-        typing.Dict[int, float],
-        typing.Dict[int, bool],
-        typing.Dict[int, typing.Dict[str, str]],
+        typing.Dict[str, spaces.Dict],
+        typing.Dict[str, float],
+        typing.Dict[str, bool],
+        typing.Dict[str, typing.Dict[str, str]],
     ]:
-        observations = {i: self.observation_space.sample() for i in range(N_AGENTS)}
-        rewards = {i: 0.0 for i in range(N_AGENTS)}
-        dones = {i: False for i in range(N_AGENTS)}
-        infos = {i: {"test": "test"} for i in range(N_AGENTS)}
+        self._counter += 1
+
+        observations = {
+            f"{i}": self.observation_space.sample() for i in range(N_AGENTS)
+        }
+        rewards = {f"{i}": 0.0 for i in range(N_AGENTS)}
+        dones = {f"{i}": False for i in range(N_AGENTS)}
+        dones["__all__"] = self._counter % 10 == 0
+        infos = {f"{i}": {"test": "test"} for i in range(N_AGENTS)}
         return observations, rewards, dones, infos
 
     def render(self, mode: str = "human") -> None:
