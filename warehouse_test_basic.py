@@ -5,7 +5,9 @@ if __name__ == "__main__":
     observations = env.reset()
     done = False
     while not done:
-        action_dict = {1: env.action_space.sample()}
+        action_dict = {"0": env.action_space.sample()}
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
-        print(action_dict)
-        print(observations)
+        done = dones["__all__"]
+        env.render()
+        # print(action_dict)
+        # print(observations)
