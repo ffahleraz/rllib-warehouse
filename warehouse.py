@@ -71,20 +71,11 @@ class Warehouse(MultiAgentEnv):
             }
         )
 
-        self._world = world(gravity=(0, 0), doSleep=True)
         self._viewer: gym.Viewer = None
-
-    def _setup(self) -> None:
-        # self._agent_bodies: typing.List[dynamicBody] = []
-        # for _ in range(N_AGENTS):
-        #     body = self._world.CreateDynamicBody(position=(2, 5))
-
-        body = self._world.CreateDynamicBody(position=(2, 5))
-        circle = body.CreateCircleFixture(radius=0.4, density=1, friction=0.5)
+        self._world = world(gravity=(0, 0), doSleep=False)
+        self._agent_bodies: typing.List[dynamicBody] = []
 
     def _draw_circle(self, body: Box2D.b2Body, fixture: Box2D.b2Fixture) -> None:
-        # position = body.transform * fixture.shape.pos * PIXELS_PER_METER
-        # position = (position[0], VIEWPORT_DIMENSION - position[1])
         self._viewer.draw_circle(
             fixture.shape.radius * PIXELS_PER_METER, 30, color=(0, 0, 0)
         ).add_attr(
@@ -94,14 +85,15 @@ class Warehouse(MultiAgentEnv):
                 * PIXELS_PER_METER
             )
         )
-        print("rad", fixture.shape.radius)
-        print("pos", fixture.body.transform * fixture.shape.pos)
-        self._viewer.draw_circle()
 
     def reset(self) -> typing.Dict[str, gym.spaces.Dict]:
         self._counter = 1
 
-        self._setup()
+        self._agent_bodies = []
+        for _ in range(N_AGENTS):
+            body = self._world.CreateDynamicBody(position=(1, 5))
+            _ = body.CreateCircleFixture(radius=0.4, density=1, friction=1)
+            self._agent_bodies.append(body)
 
         return {f"{i}": self.observation_space.sample() for i in range(N_AGENTS)}
 
@@ -114,6 +106,19 @@ class Warehouse(MultiAgentEnv):
         typing.Dict[str, typing.Dict[str, str]],
     ]:
         self._counter += 1
+
+        if self._counter < 100:
+            for body in self._agent_bodies:
+                # body.ApplyForceToCenter((10, 0), wake=True)
+                body.ApplyForceToCenter((10, 0), wake=True)
+                body.linearVelocity = (1, 0)
+                body.linearDamping = 1
+                print(body.mass)
+        else:
+            for body in self._agent_bodies:
+                # body.ApplyForceToCenter((-10, 0), wake=True)
+                body.linearVelocity = (-1, 0)
+                body.linearDamping = 1
 
         self._world.Step(1.0 / FRAMES_PER_SECOND, 10, 10)
 
@@ -129,16 +134,15 @@ class Warehouse(MultiAgentEnv):
     def render(self, mode: str = "human") -> None:
         if mode != "human":
             super(Warehouse, self).render(mode=mode)
+        print(self._counter)
 
         if self._viewer is None:
             self._viewer = rendering.Viewer(VIEWPORT_DIMENSION, VIEWPORT_DIMENSION)
 
-        for body in self._world.bodies:
-            for fixture in body.fixtures:
-                self._draw_circle(body, fixture)
+        for body in self._agent_bodies:
+            self._draw_circle(body, body.fixtures[0])
 
-        self._viewer.render()
-        print(self._counter)
+        _ = self._viewer.render()
 
     def close(self) -> None:
         pass
