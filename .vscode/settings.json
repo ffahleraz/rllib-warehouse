@@ -2,7 +2,7 @@
     "editor.formatOnSave": true,
     "editor.wordWrap": "on",
     "editor.rulers": [
-        88
+        100
     ],
     "python.linting.enabled": true,
     "python.linting.lintOnSave": true,
@@ -12,7 +12,7 @@
     "python.linting.mypyPath": "/Users/ffahleraz/opt/anaconda3/envs/final-project/bin/mypy",
     "python.formatting.provider": "black",
     "python.formatting.blackArgs": [
-        "--line-length=88"
+        "--line-length=100"
     ],
     "python.formatting.blackPath": "/Users/ffahleraz/opt/anaconda3/envs/final-project/bin/black",
     "python.pythonPath": "/Users/ffahleraz/opt/anaconda3/envs/final-project/bin/python"
