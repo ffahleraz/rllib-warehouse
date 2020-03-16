@@ -1,3 +1,4 @@
+import time
 import typing
 
 import numpy as np
@@ -22,11 +23,16 @@ from Box2D.b2 import (
 AREA_DIMENSION_M: float = 16.0
 BORDER_WIDTH_M: float = 1.0
 WORLD_DIMENSION_M: float = AREA_DIMENSION_M + 2 * BORDER_WIDTH_M
+AGENT_RADIUS: float = 0.3
 PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0, 13.0]
 FRAMES_PER_SECOND: int = 20
 
 NUM_AGENTS: int = (len(PICKUP_RACKS_ARRANGEMENT) + 1) ** 2
 DELIVERY_QUEUE_LEN: int = 20
+
+COLLISION_REWARD: float = -1.0
+PICKUP_REWARD_MULTIPLIER: float = 100.0
+DELIVERY_REWARD_MULTIPLIER: float = 100.0
 
 # Rendering
 B2_VEL_ITERS: int = 10
@@ -71,9 +77,12 @@ class Warehouse(MultiAgentEnv):
         )
 
         self._viewer: gym.Viewer = None
+
         self._world = world(gravity=(0, 0), doSleep=False)
         self._agent_bodies: typing.List[dynamicBody] = []
         self._border_bodies: typing.List[dynamicBody] = []
+
+        self._agent_positions: np.ndarray = None
         self._pickup_points: np.ndarray = None
         self._delivery_points: np.ndarray = None
 
@@ -84,11 +93,14 @@ class Warehouse(MultiAgentEnv):
             PICKUP_RACKS_ARRANGEMENT[0] - racks_diff,
             *[x + racks_diff for x in PICKUP_RACKS_ARRANGEMENT],
         ]
+        agent_positions: typing.List[typing.List[float]] = []
         for x in arrangement:
             for y in arrangement:
                 body = self._world.CreateDynamicBody(position=(x, y))
-                _ = body.CreateCircleFixture(radius=0.3, density=1.0, friction=0.0)
+                _ = body.CreateCircleFixture(radius=AGENT_RADIUS, density=1.0, friction=0.0)
                 self._agent_bodies.append(body)
+                agent_positions.append([x, y])
+        self._agent_positions = np.array(agent_positions, dtype=np.float32)
 
         self._border_bodies = [
             self._world.CreateStaticBody(
@@ -136,7 +148,7 @@ class Warehouse(MultiAgentEnv):
 
         return {
             str(i): {
-                "self_position": np.array(self._agent_bodies[i].position, dtype=np.float32),
+                "self_position": self._agent_positions[i],
                 "pickup_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
                 "delivery_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
             }
@@ -151,14 +163,36 @@ class Warehouse(MultiAgentEnv):
         typing.Dict[str, bool],
         typing.Dict[str, typing.Dict[str, str]],
     ]:
+        # Update agent velocities
         for key, value in action_dict.items():
-            self._agent_bodies[int(key)].linearVelocity = value.tolist()
+            self._agent_bodies[int(key)].linearVelocity = (-1, -1)  # value.tolist()
 
+        # Step simulation
         self._world.Step(1.0 / FRAMES_PER_SECOND, 10, 10)
+
+        # Update agent positions
+        for idx, body in enumerate(self._agent_bodies):
+            self._agent_positions[idx][0] = body.position[0]
+            self._agent_positions[idx][1] = body.position[1]
+
+        # Detect collisions
+        distances = np.linalg.norm(
+            np.repeat(self._agent_positions[:, np.newaxis, :], NUM_AGENTS, axis=1)
+            - np.repeat(self._agent_positions[np.newaxis, :, :], NUM_AGENTS, axis=0),
+            axis=2,
+        )
+        collision_counts = (
+            np.count_nonzero(np.where(distances < 2 * AGENT_RADIUS + 0.05, 1, 0), axis=1) - 1
+        )
+        temp_rewards = collision_counts * COLLISION_REWARD
+
+        # Detect pickups
+
+        # Detect deliveries
 
         observations = {
             str(i): {
-                "self_position": np.array(self._agent_bodies[i].position, dtype=np.float32),
+                "self_position": self._agent_positions[i],
                 "pickup_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
                 "delivery_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
             }
