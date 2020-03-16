@@ -2,30 +2,37 @@ import typing
 
 import numpy as np
 import gym
-from gym.envs.classic_control import rendering
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 import Box2D
 from Box2D.b2 import (
     world,
-    polygonShape,
     circleShape,
-    staticBody,
+    polygonShape,
     dynamicBody,
 )
 
+# Engineering notes:
+#   - Each agent is identified by int[0, NUM_AGENTS) in string type.
+#   - Zero coordinate for the env is on the bottom left, this is then transformed to
+#     top left for rendering.
+#
+# |B|x| | |x|x| | |x|x| | |x|x| | |x|B|
 
-# Env
-N_AGENTS: int = 10
-N_PICKUP_POINTS: int = 10
-N_DELIVERY_POINTS: int = 10
-AREA_DIMENSION: float = 10.0
+# Environment
+AREA_DIMENSION_M: float = 16.0
+BORDER_WIDTH_M: float = 1.0
+WORLD_DIMENSION_M: float = AREA_DIMENSION_M + 2 * BORDER_WIDTH_M
+RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0, 13.0]
+FRAMES_PER_SECOND: int = 20
 
-# Box2D
+NUM_AGENTS: int = (len(RACKS_ARRANGEMENT) + 1) ** 2
+DELIVERY_QUEUE_LEN: int = 20
+
+# Rendering
 B2_VEL_ITERS: int = 10
 B2_POS_ITERS: int = 10
-FRAMES_PER_SECOND: int = 50
-PIXELS_PER_METER: int = 50
-VIEWPORT_DIMENSION: int = int(AREA_DIMENSION) * PIXELS_PER_METER
+PIXELS_PER_METER: int = 30
+VIEWPORT_DIMENSION_PX: int = int(WORLD_DIMENSION_M) * PIXELS_PER_METER
 
 
 class Warehouse(MultiAgentEnv):
@@ -37,108 +44,143 @@ class Warehouse(MultiAgentEnv):
             "video.frames_per_second": FRAMES_PER_SECOND,
         }
         self.reward_range = (-np.inf, -np.inf)
-        self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
+        self.action_space = gym.spaces.Box(
+            low=-1.0, high=1.0, shape=(2,), dtype=np.float32
+        )
         self.observation_space = gym.spaces.Dict(
             {
                 "self_position": gym.spaces.Box(
-                    low=AREA_DIMENSION,
-                    high=AREA_DIMENSION,
+                    low=-AREA_DIMENSION_M,
+                    high=AREA_DIMENSION_M,
                     shape=(2,),
                     dtype=np.float32,
                 ),
-                "pickup_points": gym.spaces.Dict(
-                    {
-                        "availability": gym.spaces.MultiBinary(N_PICKUP_POINTS),
-                        "positions": gym.spaces.Box(
-                            low=AREA_DIMENSION,
-                            high=AREA_DIMENSION,
-                            shape=(N_PICKUP_POINTS, 2),
-                            dtype=np.float32,
-                        ),
-                    }
+                "pickup_positions": gym.spaces.Box(
+                    low=-AREA_DIMENSION_M,
+                    high=AREA_DIMENSION_M,
+                    shape=(DELIVERY_QUEUE_LEN, 2),
+                    dtype=np.float32,
                 ),
-                "delivery_points": gym.spaces.Dict(
-                    {
-                        "availability": gym.spaces.MultiBinary(N_DELIVERY_POINTS),
-                        "positions": gym.spaces.Box(
-                            low=AREA_DIMENSION,
-                            high=AREA_DIMENSION,
-                            shape=(N_DELIVERY_POINTS, 2),
-                            dtype=np.float32,
-                        ),
-                    }
+                "delivery_positions": gym.spaces.Box(
+                    low=-AREA_DIMENSION_M,
+                    high=AREA_DIMENSION_M,
+                    shape=(DELIVERY_QUEUE_LEN, 2),
+                    dtype=np.float32,
                 ),
             }
         )
 
-        self._world = world(gravity=(0, 0), doSleep=True)
         self._viewer: gym.Viewer = None
-
-    def _setup(self) -> None:
-        # self._agent_bodies: typing.List[dynamicBody] = []
-        # for _ in range(N_AGENTS):
-        #     body = self._world.CreateDynamicBody(position=(2, 5))
-
-        body = self._world.CreateDynamicBody(position=(2, 5))
-        circle = body.CreateCircleFixture(radius=0.4, density=1, friction=0.5)
-
-    def _draw_circle(self, body: Box2D.b2Body, fixture: Box2D.b2Fixture) -> None:
-        # position = body.transform * fixture.shape.pos * PIXELS_PER_METER
-        # position = (position[0], VIEWPORT_DIMENSION - position[1])
-        self._viewer.draw_circle(
-            fixture.shape.radius * PIXELS_PER_METER, 30, color=(0, 0, 0)
-        ).add_attr(
-            rendering.Transform(
-                translation=fixture.body.transform
-                * fixture.shape.pos
-                * PIXELS_PER_METER
-            )
-        )
-        print("rad", fixture.shape.radius)
-        print("pos", fixture.body.transform * fixture.shape.pos)
-        self._viewer.draw_circle()
+        self._world = world(gravity=(0, 0), doSleep=False)
+        self._agent_bodies: typing.List[dynamicBody] = []
+        self._border_bodies: typing.List[dynamicBody] = []
 
     def reset(self) -> typing.Dict[str, gym.spaces.Dict]:
-        self._counter = 1
+        self._agent_bodies = []
+        racks_diff = (RACKS_ARRANGEMENT[1] - RACKS_ARRANGEMENT[0]) / 2
+        arrangement = [
+            RACKS_ARRANGEMENT[0] - racks_diff,
+            *[x + racks_diff for x in RACKS_ARRANGEMENT],
+        ]
+        for x in arrangement:
+            for y in arrangement:
+                body = self._world.CreateDynamicBody(position=(x, y))
+                _ = body.CreateCircleFixture(radius=0.4, density=1.0, friction=0.0)
+                self._agent_bodies.append(body)
 
-        self._setup()
+        self._border_bodies = [
+            self._world.CreateStaticBody(
+                position=(WORLD_DIMENSION_M / 2, BORDER_WIDTH_M / 2),
+                shapes=polygonShape(box=(WORLD_DIMENSION_M / 2, BORDER_WIDTH_M / 2)),
+            ),
+            self._world.CreateStaticBody(
+                position=(
+                    WORLD_DIMENSION_M / 2,
+                    WORLD_DIMENSION_M - BORDER_WIDTH_M / 2,
+                ),
+                shapes=polygonShape(box=(WORLD_DIMENSION_M / 2, BORDER_WIDTH_M / 2)),
+            ),
+            self._world.CreateStaticBody(
+                position=(BORDER_WIDTH_M / 2, WORLD_DIMENSION_M / 2,),
+                shapes=polygonShape(box=(BORDER_WIDTH_M / 2, WORLD_DIMENSION_M / 2)),
+            ),
+            self._world.CreateStaticBody(
+                position=(
+                    WORLD_DIMENSION_M - BORDER_WIDTH_M / 2,
+                    WORLD_DIMENSION_M / 2,
+                ),
+                shapes=polygonShape(box=(BORDER_WIDTH_M / 2, WORLD_DIMENSION_M / 2)),
+            ),
+        ]
 
-        return {f"{i}": self.observation_space.sample() for i in range(N_AGENTS)}
+        return {
+            str(i): {
+                "self_position": np.array(self._agent_bodies[i].position),
+                "pickup_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
+                "delivery_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
+            }
+            for i in range(NUM_AGENTS)
+        }
 
     def step(
-        self, action_dict: typing.Dict[str, gym.spaces.Box]
+        self, action_dict: typing.Dict[str, np.ndarray]
     ) -> typing.Tuple[
         typing.Dict[str, gym.spaces.Dict],
         typing.Dict[str, float],
         typing.Dict[str, bool],
         typing.Dict[str, typing.Dict[str, str]],
     ]:
-        self._counter += 1
+        for key, value in action_dict.items():
+            self._agent_bodies[int(key)].linearVelocity = value.tolist()
 
         self._world.Step(1.0 / FRAMES_PER_SECOND, 10, 10)
 
         observations = {
-            f"{i}": self.observation_space.sample() for i in range(N_AGENTS)
+            str(i): {
+                "self_position": np.array(self._agent_bodies[i].position),
+                "pickup_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
+                "delivery_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
+            }
+            for i in range(NUM_AGENTS)
         }
-        rewards = {f"{i}": 0.0 for i in range(N_AGENTS)}
-        dones = {f"{i}": False for i in range(N_AGENTS)}
-        dones["__all__"] = self._counter % 1000 == 0
-        infos = {f"{i}": {"test": "test"} for i in range(N_AGENTS)}
+        rewards = {f"{i}": 0.0 for i in range(NUM_AGENTS)}
+        dones = {f"{i}": False for i in range(NUM_AGENTS)}
+        dones["__all__"] = False
+        infos = {f"{i}": {"test": "test"} for i in range(NUM_AGENTS)}
         return observations, rewards, dones, infos
 
     def render(self, mode: str = "human") -> None:
+        from gym.envs.classic_control import rendering
+
         if mode != "human":
             super(Warehouse, self).render(mode=mode)
 
         if self._viewer is None:
-            self._viewer = rendering.Viewer(VIEWPORT_DIMENSION, VIEWPORT_DIMENSION)
+            self._viewer = rendering.Viewer(
+                VIEWPORT_DIMENSION_PX, VIEWPORT_DIMENSION_PX
+            )
 
-        for body in self._world.bodies:
+        for body in self._agent_bodies:
             for fixture in body.fixtures:
-                self._draw_circle(body, fixture)
+                self._viewer.draw_circle(
+                    fixture.shape.radius * PIXELS_PER_METER, 30, color=(0, 0, 0)
+                ).add_attr(
+                    rendering.Transform(
+                        translation=fixture.body.transform
+                        * fixture.shape.pos
+                        * PIXELS_PER_METER
+                    )
+                )
+
+        for body in self._border_bodies:
+            for fixture in body.fixtures:
+                vertices = [
+                    fixture.body.transform * v * PIXELS_PER_METER
+                    for v in fixture.shape.vertices
+                ]
+                self._viewer.draw_polygon(vertices, color=(0.5, 0.5, 0.5))
 
         self._viewer.render()
-        print(self._counter)
 
     def close(self) -> None:
         pass
