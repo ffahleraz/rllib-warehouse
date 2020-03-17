@@ -320,28 +320,34 @@ class Warehouse(MultiAgentEnv):
             axis=2,
         )
         waiting_pickup_point_idxs = np.where(self._waiting_pickup_point_target_idxs > -1.0)[0]
-        picker_agent_idxs, valid_pickup_idxs = np.where(
+        picker_agent_idxs, valid_idxs_from_waiting_pickup_point_idxs = np.where(
             (agent_and_pickup_point_distances < PICKUP_POSITION_EPSILON)[
                 :, waiting_pickup_point_idxs
             ]
         )
+        new_served_pickup_point_idxs = waiting_pickup_point_idxs[
+            valid_idxs_from_waiting_pickup_point_idxs
+        ]
+
         self._served_pickup_point_target_idxs[
-            valid_pickup_idxs
-        ] = self._waiting_pickup_point_target_idxs[valid_pickup_idxs]
-        self._served_pickup_point_picker_agent_idxs[valid_pickup_idxs] = picker_agent_idxs
-        self._served_pickup_point_remaining_times[valid_pickup_idxs] = 0.0
+            new_served_pickup_point_idxs
+        ] = self._waiting_pickup_point_target_idxs[new_served_pickup_point_idxs]
+        self._served_pickup_point_picker_agent_idxs[
+            new_served_pickup_point_idxs
+        ] = picker_agent_idxs
+        self._served_pickup_point_remaining_times[new_served_pickup_point_idxs] = 0.0
         self._agent_availabilities[picker_agent_idxs] = 0
 
         # Calculate pickup rewards
         temp_rewards[picker_agent_idxs] += (
             PICKUP_BASE_REWARD
-            + self._waiting_pickup_point_remaining_times[valid_pickup_idxs]
+            + self._waiting_pickup_point_remaining_times[new_served_pickup_point_idxs]
             * PICKUP_TIME_REWARD_MULTIPLIER
         )
 
         # Regenerate waiting pickup points
-        self._waiting_pickup_point_target_idxs[valid_pickup_idxs] = -1
-        self._waiting_pickup_point_remaining_times[valid_pickup_idxs] = -1.0
+        self._waiting_pickup_point_target_idxs[new_served_pickup_point_idxs] = -1
+        self._waiting_pickup_point_remaining_times[new_served_pickup_point_idxs] = -1.0
 
         inactive_pickup_point_idxs = np.where(self._waiting_pickup_point_target_idxs == -1)[0]
         new_waiting_pickup_point_idxs = np.random.choice(
