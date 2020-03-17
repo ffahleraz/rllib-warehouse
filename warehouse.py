@@ -16,8 +16,16 @@ from Box2D.b2 import (
 #   - Each agent is identified by int[0, NUM_AGENTS) in string type.
 #   - Zero coordinate for the env is on the bottom left, this is then transformed to
 #     top left for rendering.
-#
-# |B|x| | |x|x| | |x|x| | |x|x| | |x|B|
+#   - Pickup point states:
+#       - -2: inactive
+#       - -1: active, waiting pickup
+#       - [0, NUM_AGENTS): pickup valid, timer started, number indicates carrier agent
+#   - Delivery point states:
+#       - -2: inactive
+#       - -1: active, waiting pickup
+#       - [0, NUM_AGENTS): carrier agent
+#   - Environment layout:
+#       |B|x| | |x|x| | |x|x| | |x|x| | |x|B|
 
 # Environment
 AREA_DIMENSION_M: float = 16.0
@@ -28,11 +36,20 @@ PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0, 13.0]
 FRAMES_PER_SECOND: int = 20
 
 NUM_AGENTS: int = (len(PICKUP_RACKS_ARRANGEMENT) + 1) ** 2
-DELIVERY_QUEUE_LEN: int = 20
+NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
+NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M)
+NUM_REQUESTS: int = 20
 
 COLLISION_REWARD: float = -1.0
 PICKUP_REWARD_MULTIPLIER: float = 100.0
 DELIVERY_REWARD_MULTIPLIER: float = 100.0
+
+# MAX_PICKUP_WAIT_TIME: int = 400
+# MAX_DELIVERY_WAIT_TIME: int = 400
+
+AGENT_COLLISION_EPSILON: float = 0.05
+PICKUP_POSITION_EPSILON: float = 5  # 0.3
+DELIVERY_POSITION_EPSILON: float = 5  # 0.3
 
 # Rendering
 B2_VEL_ITERS: int = 10
@@ -59,18 +76,52 @@ class Warehouse(MultiAgentEnv):
         self.observation_space = gym.spaces.Dict(
             {
                 "self_position": gym.spaces.Box(
-                    low=-AREA_DIMENSION_M, high=AREA_DIMENSION_M, shape=(2,), dtype=np.float32,
-                ),
-                "pickup_positions": gym.spaces.Box(
-                    low=-AREA_DIMENSION_M,
-                    high=AREA_DIMENSION_M,
-                    shape=(DELIVERY_QUEUE_LEN, 2),
+                    low=BORDER_WIDTH_M,
+                    high=WORLD_DIMENSION_M - BORDER_WIDTH_M,
+                    shape=(2,),
                     dtype=np.float32,
                 ),
-                "delivery_positions": gym.spaces.Box(
-                    low=-AREA_DIMENSION_M,
-                    high=AREA_DIMENSION_M,
-                    shape=(DELIVERY_QUEUE_LEN, 2),
+                "self_availability": gym.spaces.MultiBinary(1),
+                "self_delivery_target": gym.spaces.Box(
+                    low=np.array([0.0, 0.0, 0.0]),
+                    high=np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M, np.inf]),
+                    dtype=np.float32,
+                ),
+                "other_positions": gym.spaces.Box(
+                    low=BORDER_WIDTH_M,
+                    high=WORLD_DIMENSION_M - BORDER_WIDTH_M,
+                    shape=(NUM_AGENTS - 1, 2),
+                    dtype=np.float32,
+                ),
+                "other_availabilities": gym.spaces.MultiBinary(NUM_AGENTS - 1),
+                "other_delivery_targets": gym.spaces.Box(
+                    low=np.repeat(
+                        np.array([0.0, 0.0, 0.0])[np.newaxis, :,], NUM_AGENTS - 1, axis=0
+                    ),
+                    high=np.repeat(
+                        np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M, np.inf])[np.newaxis, :,],
+                        NUM_AGENTS - 1,
+                        axis=0,
+                    ),
+                    dtype=np.float32,
+                ),
+                "requests": gym.spaces.Box(
+                    low=np.repeat(
+                        np.array([0.0, 0.0, 0.0, 0.0, 0.0])[np.newaxis, :,], NUM_REQUESTS, axis=0,
+                    ),
+                    high=np.repeat(
+                        np.array(
+                            [
+                                WORLD_DIMENSION_M,
+                                WORLD_DIMENSION_M,
+                                WORLD_DIMENSION_M,
+                                WORLD_DIMENSION_M,
+                                np.inf,
+                            ]
+                        )[np.newaxis, :,],
+                        NUM_REQUESTS,
+                        axis=0,
+                    ),
                     dtype=np.float32,
                 ),
             }
@@ -83,10 +134,30 @@ class Warehouse(MultiAgentEnv):
         self._border_bodies: typing.List[dynamicBody] = []
 
         self._agent_positions: np.ndarray = None
-        self._pickup_points: np.ndarray = None
-        self._delivery_points: np.ndarray = None
+        self._agent_delivering_states: np.ndarray = None
+
+        # self._pickup_points: np.ndarray = None
+        # self._delivery_points: np.ndarray = None
+
+        # self._pickup_point_states: np.ndarray = None
+        # self._pickup_point_wait_times: np.ndarray = None
+        # self._pickup_point_delivery_target_idx: np.ndarray = None
+        # self._delivery_point_states: np.ndarray = None
+        # self._delivery_point_wait_times: np.ndarray = None
+
+        self._pickup_point_positions: np.ndarray = None
+        self._delivery_point_positions: np.ndarray = None
+
+        self._waiting_pickup_point_delivery_target_idxs: np.ndarray = None
+        self._waiting_pickup_point_elapsed_times: np.ndarray = None
+
+        self._served_pickup_point_delivery_target_idxs: np.ndarray = None
+        self._served_pickup_point_elapsed_times: np.ndarray = None
+
+        print(self.observation_space.sample())
 
     def reset(self) -> typing.Dict[str, gym.spaces.Dict]:
+        # Init agents
         self._agent_bodies = []
         racks_diff = (PICKUP_RACKS_ARRANGEMENT[1] - PICKUP_RACKS_ARRANGEMENT[0]) / 2
         arrangement = [
@@ -101,7 +172,9 @@ class Warehouse(MultiAgentEnv):
                 self._agent_bodies.append(body)
                 agent_positions.append([x, y])
         self._agent_positions = np.array(agent_positions, dtype=np.float32)
+        self._agent_delivering_states = np.zeros(NUM_AGENTS, dtype=np.bool)
 
+        # Init borders
         self._border_bodies = [
             self._world.CreateStaticBody(
                 position=(WORLD_DIMENSION_M / 2, BORDER_WIDTH_M / 2),
@@ -121,10 +194,11 @@ class Warehouse(MultiAgentEnv):
             ),
         ]
 
-        pickup_points = []
+        # Init pickup point positions
+        pickup_point_positions = []
         for x in PICKUP_RACKS_ARRANGEMENT:
             for y in PICKUP_RACKS_ARRANGEMENT:
-                pickup_points.extend(
+                pickup_point_positions.extend(
                     [
                         [x - 0.5, y - 0.5],
                         [x + 0.5, y - 0.5],
@@ -132,11 +206,12 @@ class Warehouse(MultiAgentEnv):
                         [x - 0.5, y + 0.5],
                     ]
                 )
-        self._pickup_points = np.array(pickup_points, dtype=np.float32)
+        self._pickup_point_positions = np.array(pickup_point_positions, dtype=np.float32)
 
-        delivery_points = []
+        # Init delivery point positions
+        delivery_point_positions = []
         for val in range(int(AREA_DIMENSION_M)):
-            delivery_points.extend(
+            delivery_point_positions.extend(
                 [
                     [BORDER_WIDTH_M + val + 0.5, BORDER_WIDTH_M + 0.5],
                     [BORDER_WIDTH_M + val + 0.5, WORLD_DIMENSION_M - BORDER_WIDTH_M - 0.5,],
@@ -144,13 +219,46 @@ class Warehouse(MultiAgentEnv):
                     [WORLD_DIMENSION_M - BORDER_WIDTH_M - 0.5, BORDER_WIDTH_M + val + 0.5,],
                 ]
             )
-        self._delivery_points = np.array(delivery_points, dtype=np.float32)
+        self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.float32)
+
+        self._waiting_pickup_point_elapsed_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32)
+        self._waiting_pickup_point_delivery_target_idxs = np.full(
+            NUM_PICKUP_POINTS, -1, dtype=np.int32
+        )
+        self._waiting_pickup_point_delivery_target_idxs[
+            np.random.choice(NUM_PICKUP_POINTS, NUM_REQUESTS, replace=False,)
+        ] = np.random.choice(NUM_DELIVERY_POINTS, NUM_REQUESTS, replace=False,)
+
+        self._served_pickup_point_elapsed_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32)
+        self._served_pickup_point_delivery_target_idxs = np.full(
+            NUM_PICKUP_POINTS, -1, dtype=np.int32
+        )
+
+        # self._pickup_point_states = np.full(NUM_PICKUP_POINTS, -2, dtype=np.int32)
+        # self._pickup_point_wait_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
+        # active_pickup_point_idxs = np.random.choice(NUM_PICKUP_POINTS, NUM_REQUESTS, replace=False,)
+        # self._pickup_point_states[active_pickup_point_idxs] = -1
+
+        # self._delivery_point_states = np.full(NUM_PICKUP_POINTS, -2, dtype=np.int32)
+        # self._delivery_point_wait_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
+        # new_pickup_point_idxs = np.random.choice(NUM_PICKUP_POINTS, NUM_REQUESTS, replace=False,)
+        # self._pickup_point_states[new_pickup_point_idxs] = -1
+
+        # inactive_delivery_point_idxs = np.where(self._delivery_point_states == -2)[0]
+        # new_delivery_point_idxs = np.random.choice(
+        #     inactive_delivery_point_idxs,
+        #     NUM_REQUESTS - NUM_DELIVERY_POINTS + inactive_delivery_point_idxs.shape[0],
+        #     replace=False,
+        # )
+        # self._delivery_point_states[new_delivery_point_idxs] = -1
+        # self._delivery_point_wait_times[new_delivery_point_idxs] = 0
 
         return {
             str(i): {
                 "self_position": self._agent_positions[i],
-                "pickup_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
-                "delivery_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
+                "other_positions": self._agent_positions,
+                "pickup_positions": np.zeros((NUM_REQUESTS, 2)),
+                "delivery_positions": np.zeros((NUM_REQUESTS, 2)),
             }
             for i in range(NUM_AGENTS)
         }
@@ -165,7 +273,7 @@ class Warehouse(MultiAgentEnv):
     ]:
         # Update agent velocities
         for key, value in action_dict.items():
-            self._agent_bodies[int(key)].linearVelocity = (-1, -1)  # value.tolist()
+            self._agent_bodies[int(key)].linearVelocity = value.tolist()
 
         # Step simulation
         self._world.Step(1.0 / FRAMES_PER_SECOND, 10, 10)
@@ -175,26 +283,59 @@ class Warehouse(MultiAgentEnv):
             self._agent_positions[idx][0] = body.position[0]
             self._agent_positions[idx][1] = body.position[1]
 
-        # Detect collisions
-        distances = np.linalg.norm(
+        # Detect agent each-other collisions
+        agent_eachother_distances = np.linalg.norm(
             np.repeat(self._agent_positions[:, np.newaxis, :], NUM_AGENTS, axis=1)
             - np.repeat(self._agent_positions[np.newaxis, :, :], NUM_AGENTS, axis=0),
             axis=2,
         )
-        collision_counts = (
-            np.count_nonzero(np.where(distances < 2 * AGENT_RADIUS + 0.05, 1, 0), axis=1) - 1
+        agent_eachother_collision_counts = (
+            np.count_nonzero(
+                agent_eachother_distances < 2 * AGENT_RADIUS + AGENT_COLLISION_EPSILON, axis=1
+            )
+            - 1
         )
-        temp_rewards = collision_counts * COLLISION_REWARD
+        temp_rewards = agent_eachother_collision_counts * COLLISION_REWARD
 
         # Detect pickups
+        agent_and_pickup_distances = np.linalg.norm(
+            np.repeat(self._agent_positions[:, np.newaxis, :], NUM_PICKUP_POINTS, axis=1)
+            - np.repeat(self._pickup_points[np.newaxis, :, :], NUM_AGENTS, axis=0),
+            axis=2,
+        )
+        active_pickup_point_idxs = np.where(self._pickup_point_states > -2)[0]
+        carrier_agent_idxs, valid_pickup_idxs = np.where(
+            (agent_and_pickup_distances < PICKUP_POSITION_EPSILON)[:, active_pickup_point_idxs]
+        )
+        self._pickup_point_states[valid_pickup_idxs] = carrier_agent_idxs
+
+        # TODO: Assign reward for pickup
+
+        inactive_pickup_point_idxs = np.where(self._pickup_point_states == -2)[0]
+        new_pickup_point_idxs = np.random.choice(
+            inactive_pickup_point_idxs,
+            NUM_REQUESTS - NUM_PICKUP_POINTS + inactive_pickup_point_idxs.shape[0],
+            replace=False,
+        )
+        self._pickup_point_states[new_pickup_point_idxs] = -1
+        self._pickup_point_wait_times[new_pickup_point_idxs] = 0
 
         # Detect deliveries
+
+        # inactive_delivery_point_idxs = np.where(self._delivery_point_states == -2)[0]
+        # new_delivery_point_idxs = np.random.choice(
+        #     inactive_delivery_point_idxs,
+        #     NUM_REQUESTS - NUM_DELIVERY_POINTS + inactive_delivery_point_idxs.shape[0],
+        #     replace=False,
+        # )
+        # self._delivery_point_states[new_delivery_point_idxs] = -1
+        # self._delivery_point_wait_times[new_delivery_point_idxs] = 0
 
         observations = {
             str(i): {
                 "self_position": self._agent_positions[i],
-                "pickup_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
-                "delivery_positions": np.zeros((DELIVERY_QUEUE_LEN, 2)),
+                "pickup_positions": np.zeros((NUM_REQUESTS, 2)),
+                "delivery_positions": np.zeros((NUM_REQUESTS, 2)),
             }
             for i in range(NUM_AGENTS)
         }
