@@ -19,19 +19,19 @@ from Box2D.b2 import (
 #   - Environment layout:
 #       |B|x| | |x|x| | |x|x| | |x|x| | |x|B|
 #   - States:
-#       - self._waiting_pickup_point_target_idxs = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
+#       - self._waiting_pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
 #           - -1: not waiting (inactive)
 #           - [0, NUM_DELIVERY_POINTS): target delivery point idx
-#       - self._waiting_pickup_point_remaining_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32):
+#       - self._waiting_pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32):
 #           - -1.0: not waiting (inactive)
 #           - [0.0, oo): elapsed time since active
-#       - self._served_pickup_point_picker_agent_idxs = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
+#       - self._served_pickup_point_server_agents = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
 #           - -1: not served or not waiting
 #           - [0, NUM_AGENTS): picker agent idx
-#       - self._served_pickup_point_target_idxs = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
+#       - self._served_pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
 #           - -1: not served or not waiting
 #           - [0, NUM_DELIVERY_POINTS): target delivery point idx
-#       - self._served_pickup_point_remaining_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32):
+#       - self._served_pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32):
 #           - -1.0: not served or not waiting
 #           - [0.0, oo): elapsed time since served
 
@@ -45,7 +45,7 @@ FRAMES_PER_SECOND: int = 20
 
 NUM_AGENTS: int = (len(PICKUP_RACKS_ARRANGEMENT) + 1) ** 2
 NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
-NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M)
+NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
 NUM_REQUESTS: int = 20
 
 COLLISION_REWARD: float = -1.0
@@ -151,12 +151,12 @@ class Warehouse(MultiAgentEnv):
         self._pickup_point_positions = np.zeros((NUM_PICKUP_POINTS, 2), dtype=np.float32)
         self._delivery_point_positions = np.zeros((NUM_DELIVERY_POINTS, 2), dtype=np.float32)
 
-        self._waiting_pickup_point_target_idxs = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
-        self._waiting_pickup_point_remaining_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32)
+        self._waiting_pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
+        self._waiting_pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32)
 
-        self._served_pickup_point_picker_agent_idxs = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
-        self._served_pickup_point_target_idxs = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
-        self._served_pickup_point_remaining_times = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32)
+        self._served_pickup_point_server_agents = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
+        self._served_pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
+        self._served_pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32)
 
     def reset(self) -> typing.Dict[str, gym.spaces.Dict]:
         # Init agents
@@ -224,27 +224,21 @@ class Warehouse(MultiAgentEnv):
         self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.float32)
 
         # Init waiting request states
-        self._waiting_pickup_point_target_idxs = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
-        self._waiting_pickup_point_remaining_times = np.full(
-            NUM_PICKUP_POINTS, -1.0, dtype=np.float32
-        )
+        self._waiting_pickup_point_targets = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
+        self._waiting_pickup_point_timers = np.full(NUM_PICKUP_POINTS, -1.0, dtype=np.float32)
 
-        new_waiting_pickup_point_idxs = np.random.choice(
+        new_waiting_pickup_points = np.random.choice(
             NUM_PICKUP_POINTS, NUM_REQUESTS, replace=False,
         )
-        self._waiting_pickup_point_target_idxs[new_waiting_pickup_point_idxs] = np.random.choice(
+        self._waiting_pickup_point_targets[new_waiting_pickup_points] = np.random.choice(
             NUM_DELIVERY_POINTS, NUM_REQUESTS, replace=False,
         )
-        self._waiting_pickup_point_remaining_times[
-            new_waiting_pickup_point_idxs
-        ] = MAX_PICKUP_WAIT_TIME
+        self._waiting_pickup_point_timers[new_waiting_pickup_points] = MAX_PICKUP_WAIT_TIME
 
         # Init served request states
-        self._served_pickup_point_picker_agent_idxs = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
-        self._served_pickup_point_target_idxs = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
-        self._served_pickup_point_remaining_times = np.full(
-            NUM_PICKUP_POINTS, -1.0, dtype=np.float32
-        )
+        self._served_pickup_point_server_agents = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
+        self._served_pickup_point_targets = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
+        self._served_pickup_point_timers = np.full(NUM_PICKUP_POINTS, -1.0, dtype=np.float32)
 
         return {
             str(i): {
@@ -280,97 +274,157 @@ class Warehouse(MultiAgentEnv):
             self._agent_positions[idx][1] = body.position[1]
 
         # Detect agent each-other collisions and calculate rewards
-        agent_eachother_distances = np.linalg.norm(
-            np.repeat(self._agent_positions[:, np.newaxis, :], NUM_AGENTS, axis=1)
-            - np.repeat(self._agent_positions[np.newaxis, :, :], NUM_AGENTS, axis=0),
+        agent_and_agent_distances = np.linalg.norm(
+            np.repeat(self._agent_positions[np.newaxis, :, :], NUM_AGENTS, axis=0)
+            - np.repeat(self._agent_positions[:, np.newaxis, :], NUM_AGENTS, axis=1),
             axis=2,
         )
-        agent_eachother_collision_counts = (
+        agent_collision_counts = (
             np.count_nonzero(
-                agent_eachother_distances < 2 * AGENT_RADIUS + AGENT_COLLISION_EPSILON, axis=1
+                agent_and_agent_distances < 2 * AGENT_RADIUS + AGENT_COLLISION_EPSILON, axis=1
             )
             - 1
         )
-        temp_rewards = agent_eachother_collision_counts * COLLISION_REWARD
+        temp_rewards = agent_collision_counts * COLLISION_REWARD
 
         # Decrement timers
-        self._waiting_pickup_point_remaining_times[
-            self._waiting_pickup_point_target_idxs > -1
-        ] -= 1.0
-        self._served_pickup_point_remaining_times[self._served_pickup_point_target_idxs > -1] -= 1.0
+        self._waiting_pickup_point_timers[self._waiting_pickup_point_targets > -1] -= 1.0
+        self._served_pickup_point_timers[self._served_pickup_point_targets > -1] -= 1.0
 
         # Remove expired pickup and deliveries
-        expired_waiting_pickup_point_idxs_slice = self._waiting_pickup_point_remaining_times <= 0.0
-        self._waiting_pickup_point_target_idxs[expired_waiting_pickup_point_idxs_slice] = -1
-        self._waiting_pickup_point_remaining_times[expired_waiting_pickup_point_idxs_slice] = -1.0
+        expired_waiting_pickup_points_mask = self._waiting_pickup_point_timers <= 0.0
+        self._waiting_pickup_point_targets[expired_waiting_pickup_points_mask] = -1
+        self._waiting_pickup_point_timers[expired_waiting_pickup_points_mask] = -1.0
 
-        expired_served_pickup_point_idxs_slice = self._served_pickup_point_remaining_times <= 0.0
+        expired_served_pickup_points_mask = self._served_pickup_point_timers <= 0.0
         self._agent_availabilities[
-            self._served_pickup_point_picker_agent_idxs[expired_served_pickup_point_idxs_slice]
+            self._served_pickup_point_server_agents[expired_served_pickup_points_mask]
         ] = 1
 
-        self._served_pickup_point_picker_agent_idxs[expired_served_pickup_point_idxs_slice] = -1
-        self._served_pickup_point_target_idxs[expired_served_pickup_point_idxs_slice] = -1
-        self._served_pickup_point_remaining_times[expired_served_pickup_point_idxs_slice] = -1.0
+        self._served_pickup_point_server_agents[expired_served_pickup_points_mask] = -1
+        self._served_pickup_point_targets[expired_served_pickup_points_mask] = -1
+        self._served_pickup_point_timers[expired_served_pickup_points_mask] = -1.0
 
         # Detect pickups
-        agent_and_pickup_point_distances = np.linalg.norm(
-            np.repeat(self._agent_positions[:, np.newaxis, :], NUM_PICKUP_POINTS, axis=1)
-            - np.repeat(self._pickup_point_positions[np.newaxis, :, :], NUM_AGENTS, axis=0),
+        pickup_point_and_agent_distances = np.linalg.norm(
+            np.repeat(self._agent_positions[np.newaxis, :, :], NUM_PICKUP_POINTS, axis=0)
+            - np.repeat(self._pickup_point_positions[:, np.newaxis, :], NUM_AGENTS, axis=1),
             axis=2,
         )
-        waiting_pickup_point_idxs = np.where(self._waiting_pickup_point_target_idxs > -1.0)[0]
-        picker_agent_idxs, valid_idxs_from_waiting_pickup_point_idxs = np.where(
-            (agent_and_pickup_point_distances < PICKUP_POSITION_EPSILON)[
-                :, waiting_pickup_point_idxs
-            ]
+        pickup_point_and_agent_collisions_mask = (
+            pickup_point_and_agent_distances < PICKUP_POSITION_EPSILON
         )
-        new_served_pickup_point_idxs = waiting_pickup_point_idxs[
-            valid_idxs_from_waiting_pickup_point_idxs
+        new_served_pickup_point_candidates_mask = np.max(
+            pickup_point_and_agent_distances < PICKUP_POSITION_EPSILON, axis=1
+        )
+        new_served_pickup_point_server_agent_candidates = np.argmax(
+            pickup_point_and_agent_distances < PICKUP_POSITION_EPSILON, axis=1
+        )
+        new_served_pickup_points_mask = (
+            new_served_pickup_point_candidates_mask
+            & (self._waiting_pickup_point_targets > -1)
+            & (self._agent_availabilities[new_served_pickup_point_server_agent_candidates] > 0)
+        )
+        new_served_pickup_points_server_agents = new_served_pickup_point_server_agent_candidates[
+            new_served_pickup_points_mask
         ]
 
-        self._served_pickup_point_target_idxs[
-            new_served_pickup_point_idxs
-        ] = self._waiting_pickup_point_target_idxs[new_served_pickup_point_idxs]
-        self._served_pickup_point_picker_agent_idxs[
-            new_served_pickup_point_idxs
-        ] = picker_agent_idxs
-        self._served_pickup_point_remaining_times[new_served_pickup_point_idxs] = 0.0
-        self._agent_availabilities[picker_agent_idxs] = 0
+        self._served_pickup_point_targets[
+            new_served_pickup_points_mask
+        ] = self._waiting_pickup_point_targets[new_served_pickup_points_mask]
+        self._served_pickup_point_server_agents[
+            new_served_pickup_points_mask
+        ] = new_served_pickup_points_server_agents
+        self._served_pickup_point_timers[new_served_pickup_points_mask] = 0.0
+        self._agent_availabilities[new_served_pickup_points_server_agents] = 0
 
         # Calculate pickup rewards
-        temp_rewards[picker_agent_idxs] += (
+        temp_rewards[new_served_pickup_points_server_agents] += (
             PICKUP_BASE_REWARD
-            + self._waiting_pickup_point_remaining_times[new_served_pickup_point_idxs]
+            + self._waiting_pickup_point_timers[new_served_pickup_points_mask]
             * PICKUP_TIME_REWARD_MULTIPLIER
         )
 
-        # Regenerate waiting pickup points
-        self._waiting_pickup_point_target_idxs[new_served_pickup_point_idxs] = -1
-        self._waiting_pickup_point_remaining_times[new_served_pickup_point_idxs] = -1.0
+        # print(pickup_point_and_agent_distances)
+        # print(pickup_point_and_agent_collisions_mask)
+        # print(new_served_pickup_point_candidates_mask)
+        # print(new_served_pickup_point_server_agent_candidates)
+        # print(new_served_pickup_points_mask)
+        # print(new_served_pickup_points_server_agents)
+        # print(temp_rewards)
 
-        inactive_pickup_point_idxs = np.where(self._waiting_pickup_point_target_idxs == -1)[0]
-        new_waiting_pickup_point_idxs = np.random.choice(
-            inactive_pickup_point_idxs,
-            NUM_REQUESTS - NUM_PICKUP_POINTS + inactive_pickup_point_idxs.shape[0],
-            replace=False,
-        )
-        self._waiting_pickup_point_remaining_times[
-            new_waiting_pickup_point_idxs
-        ] = MAX_PICKUP_WAIT_TIME
+        # # Regenerate waiting pickup points
+        # self._waiting_pickup_point_targets[new_served_pickup_points_mask] = -1
+        # self._waiting_pickup_point_timers[new_served_pickup_points_mask] = -1.0
 
-        new_waiting_pickup_point_target_idxs = np.random.choice(
-            NUM_DELIVERY_POINTS,
-            NUM_REQUESTS - NUM_PICKUP_POINTS + inactive_pickup_point_idxs.shape[0],
-            replace=False,
-        )
-        self._waiting_pickup_point_target_idxs[
-            new_waiting_pickup_point_idxs
-        ] = new_waiting_pickup_point_target_idxs
+        # inactive_pickup_point_idxs = np.where(self._waiting_pickup_point_targets == -1)[0]
+        # new_waiting_pickup_point_idxs = np.random.choice(
+        #     inactive_pickup_point_idxs,
+        #     NUM_REQUESTS - NUM_PICKUP_POINTS + inactive_pickup_point_idxs.shape[0],
+        #     replace=False,
+        # )
+        # self._waiting_pickup_point_timers[new_waiting_pickup_point_idxs] = MAX_PICKUP_WAIT_TIME
 
-        # Detect deliveries
+        # new_waiting_pickup_point_target_idxs = np.random.choice(
+        #     NUM_DELIVERY_POINTS,
+        #     NUM_REQUESTS - NUM_PICKUP_POINTS + inactive_pickup_point_idxs.shape[0],
+        #     replace=False,
+        # )
+        # self._waiting_pickup_point_targets[
+        #     new_waiting_pickup_point_idxs
+        # ] = new_waiting_pickup_point_target_idxs
 
-        print(temp_rewards)
+        # # Detect deliveries
+        # agent_and_delivery_point_distances = np.linalg.norm(
+        #     np.repeat(self._agent_positions[:, np.newaxis, :], NUM_DELIVERY_POINTS, axis=1)
+        #     - np.repeat(self._delivery_point_positions[np.newaxis, :, :], NUM_AGENTS, axis=0),
+        #     axis=2,
+        # )
+
+        # active_served_pickup_point_agent_idxs_slice = self._served_pickup_point_targets > -1
+        # active_served_pickup_point_picker_agent_idxs = self._served_pickup_point_server_agents[
+        #     active_served_pickup_point_agent_idxs_slice
+        # ]
+        # active_served_pickup_point_target_idxs = self._served_pickup_point_targets[
+        #     active_served_pickup_point_agent_idxs_slice
+        # ]
+
+        # valid_served_pickup_point_idxs = active_served_pickup_point_picker_agent_idxs[
+        #     np.where(
+        #         agent_and_delivery_point_distances[
+        #             active_served_pickup_point_picker_agent_idxs,
+        #             active_served_pickup_point_target_idxs,
+        #         ]
+        #         < DELIVERY_POSITION_EPSILON
+        #     )[0]
+        # ]
+
+        # print("===============")
+        # print(self._served_pickup_point_server_agents_agent_idxs)
+        # print(active_served_pickup_point_picker_agent_idxs)
+        # print(active_served_pickup_point_target_idxs)
+
+        # print(valid_served_pickup_point_idxs)
+
+        # print(
+        #     np.where(
+        #         agent_and_delivery_point_distances[
+        #             active_served_pickup_point_picker_agent_idxs,
+        #             active_served_pickup_point_target_idxs,
+        #         ]
+        #         < DELIVERY_POSITION_EPSILON
+        #     )[0]
+        # )
+
+        # waiting_pickup_point_idxs = np.where(self._waiting_pickup_point_targets > -1.0)[0]
+        # picker_agent_idxs, valid_idxs_from_waiting_pickup_point_idxs = np.where(
+        #     (agent_and_pickup_point_distances < PICKUP_POSITION_EPSILON)[
+        #         :, waiting_pickup_point_idxs
+        #     ]
+        # )
+        # new_served_pickup_point_idxs = waiting_pickup_point_idxs[
+        #     valid_idxs_from_waiting_pickup_point_idxs
+        # ]
 
         observations = {
             str(i): {
