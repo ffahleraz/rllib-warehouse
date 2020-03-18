@@ -10,7 +10,8 @@ if __name__ == "__main__":
         action_dict = {str(i): env.action_space.sample() for i in range(len(observations))}
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
         done = dones["__all__"]
-        # env.render()
-        break
+        env.render()
+        print(env._episode_time)
+        # break
         # print(action_dict)
         # print(observations)
