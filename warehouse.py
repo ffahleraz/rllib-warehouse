@@ -55,10 +55,10 @@ NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
 NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
 NUM_REQUESTS: int = 20
 
-COLLISION_REWARD: float = -1.0
-PICKUP_BASE_REWARD: float = 200.0
+COLLISION_REWARD: float = -5.0
+PICKUP_BASE_REWARD: float = 100.0
 PICKUP_TIME_REWARD_MULTIPLIER: float = 2.0
-DELIVERY_BASE_REWARD: float = 200.0
+DELIVERY_BASE_REWARD: float = 100.0
 DELIVERY_TIME_REWARD_MULTIPLIER: float = 2.0
 
 MAX_EPISODE_TIME: int = 200 * FRAMES_PER_SECOND
@@ -89,7 +89,7 @@ class Warehouse(MultiAgentEnv):
             "render.modes": ["human"],
             "video.frames_per_second": FRAMES_PER_SECOND,
         }
-        self.reward_range = (-np.inf, -np.inf)
+        self.reward_range = (-np.inf, np.inf)
         self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
         self.observation_space = gym.spaces.Dict(
             {
