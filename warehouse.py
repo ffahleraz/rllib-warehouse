@@ -43,27 +43,27 @@ from Box2D.b2 import (
 #         point that is already being served)
 
 # Environment
-AREA_DIMENSION_M: float = 16.0
+AREA_DIMENSION_M: float = 12.0  # 16.0
 BORDER_WIDTH_M: float = 1.0
 WORLD_DIMENSION_M: float = AREA_DIMENSION_M + 2 * BORDER_WIDTH_M
 AGENT_RADIUS: float = 0.3
-PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0, 13.0]
+PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0]  # [5.0, 9.0, 13.0]
 FRAMES_PER_SECOND: int = 10
 
-NUM_AGENTS: int = (len(PICKUP_RACKS_ARRANGEMENT) + 1) ** 2
+NUM_AGENTS: int = 4  # (len(PICKUP_RACKS_ARRANGEMENT) + 1) ** 2
 NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
 NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
-NUM_REQUESTS: int = 20
+NUM_REQUESTS: int = 4  # 20
 
 COLLISION_REWARD: float = -5.0
-PICKUP_BASE_REWARD: float = 100.0
-PICKUP_TIME_REWARD_MULTIPLIER: float = 2.0
-DELIVERY_BASE_REWARD: float = 100.0
-DELIVERY_TIME_REWARD_MULTIPLIER: float = 2.0
+PICKUP_BASE_REWARD: float = 200.0
+PICKUP_TIME_REWARD_MULTIPLIER: float = 1.0
+DELIVERY_BASE_REWARD: float = 200.0
+DELIVERY_TIME_REWARD_MULTIPLIER: float = 1.0
 
-MAX_EPISODE_TIME: int = 200 * FRAMES_PER_SECOND
-MAX_PICKUP_WAIT_TIME: float = 10.0 * FRAMES_PER_SECOND
-MAX_DELIVERY_WAIT_TIME: float = 10.0 * FRAMES_PER_SECOND
+MAX_EPISODE_TIME: int = 400 * FRAMES_PER_SECOND
+MAX_PICKUP_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
+MAX_DELIVERY_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
 
 AGENT_COLLISION_EPSILON: float = 0.05
 PICKUP_POSITION_EPSILON: float = 0.3
@@ -172,19 +172,37 @@ class Warehouse(MultiAgentEnv):
         self._episode_time = 0
 
         # Init agents
-        self._agent_bodies = []
+        # racks_diff = (PICKUP_RACKS_ARRANGEMENT[1] - PICKUP_RACKS_ARRANGEMENT[0]) / 2
+        # arrangement = [
+        #     PICKUP_RACKS_ARRANGEMENT[0] - racks_diff,
+        #     *[x + racks_diff for x in PICKUP_RACKS_ARRANGEMENT],
+        # ]
+
+        # agent_positions: typing.List[typing.List[float]] = []
+        # self._agent_bodies = []
+        # for x in arrangement:
+        #     for y in arrangement:
+        #         body = self._world.CreateDynamicBody(position=(x, y))
+        #         _ = body.CreateCircleFixture(radius=AGENT_RADIUS, density=1.0, friction=0.0)
+        #         self._agent_bodies.append(body)
+        #         agent_positions.append([x, y])
+
         racks_diff = (PICKUP_RACKS_ARRANGEMENT[1] - PICKUP_RACKS_ARRANGEMENT[0]) / 2
         arrangement = [
-            PICKUP_RACKS_ARRANGEMENT[0] - racks_diff,
-            *[x + racks_diff for x in PICKUP_RACKS_ARRANGEMENT],
+            (PICKUP_RACKS_ARRANGEMENT[0] - racks_diff, PICKUP_RACKS_ARRANGEMENT[0] + racks_diff),
+            (PICKUP_RACKS_ARRANGEMENT[0] + racks_diff, PICKUP_RACKS_ARRANGEMENT[0] - racks_diff),
+            (PICKUP_RACKS_ARRANGEMENT[0] + racks_diff, PICKUP_RACKS_ARRANGEMENT[1] + racks_diff),
+            (PICKUP_RACKS_ARRANGEMENT[1] + racks_diff, PICKUP_RACKS_ARRANGEMENT[0] + racks_diff),
         ]
+
         agent_positions: typing.List[typing.List[float]] = []
-        for x in arrangement:
-            for y in arrangement:
-                body = self._world.CreateDynamicBody(position=(x, y))
-                _ = body.CreateCircleFixture(radius=AGENT_RADIUS, density=1.0, friction=0.0)
-                self._agent_bodies.append(body)
-                agent_positions.append([x, y])
+        self._agent_bodies = []
+        for x, y in arrangement:
+            body = self._world.CreateDynamicBody(position=(x, y))
+            _ = body.CreateCircleFixture(radius=AGENT_RADIUS, density=1.0, friction=0.0)
+            self._agent_bodies.append(body)
+            agent_positions.append([x, y])
+
         self._agent_positions = np.array(agent_positions, dtype=np.float32)
         self._agent_availabilities = np.ones(NUM_AGENTS, dtype=np.int8)
 

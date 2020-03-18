@@ -12,13 +12,21 @@ if __name__ == "__main__":
     trainer = SACTrainer(
         env="Warehouse-v0",
         config={
+            "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
+            "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
             "normalize_actions": False,
-            "no_done_at_end": True,
             "learning_starts": 20000,
-            "timesteps_per_iteration": 2000,
+            "timesteps_per_iteration": 1000,
+            "num_workers": 2,
         },
     )
 
-    for i in range(100):
-        print("== Iteration", i, "==")
-        print(pretty_print(trainer.train()))
+    for i in range(1000):
+        print("==> Iteration", i)
+
+        result = trainer.train()
+        print(pretty_print(result))
+
+        if i % 100 == 0:
+            checkpoint = trainer.save()
+            print("==> Checkpoint saved at", checkpoint)
