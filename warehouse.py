@@ -494,7 +494,7 @@ class Warehouse(MultiAgentEnv):
         rewards = {f"{i}": agent_rewards[i] for i in range(NUM_AGENTS)}
 
         # Compute dones
-        episode_done = self._episode_time > MAX_EPISODE_TIME
+        episode_done = self._episode_time >= MAX_EPISODE_TIME
         dones = {f"{i}": episode_done for i in range(NUM_AGENTS)}
         dones["__all__"] = episode_done
 
