@@ -43,17 +43,17 @@ from Box2D.b2 import (
 #         point that is already being served)
 
 # Environment
-AREA_DIMENSION_M: float = 12.0  # 16.0
+AREA_DIMENSION_M: float = 12.0
 BORDER_WIDTH_M: float = 1.0
 WORLD_DIMENSION_M: float = AREA_DIMENSION_M + 2 * BORDER_WIDTH_M
-AGENT_RADIUS: float = 0.3
-PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0]  # [5.0, 9.0, 13.0]
+AGENT_RADIUS: float = 0.4
+PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0]
 FRAMES_PER_SECOND: int = 10
 
-NUM_AGENTS: int = 4  # (len(PICKUP_RACKS_ARRANGEMENT) + 1) ** 2
+NUM_AGENTS: int = 4
 NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
 NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
-NUM_REQUESTS: int = 4  # 20
+NUM_REQUESTS: int = 4
 
 COLLISION_REWARD: float = -5.0
 PICKUP_BASE_REWARD: float = 200.0
@@ -61,9 +61,9 @@ PICKUP_TIME_REWARD_MULTIPLIER: float = 1.0
 DELIVERY_BASE_REWARD: float = 200.0
 DELIVERY_TIME_REWARD_MULTIPLIER: float = 1.0
 
-MAX_EPISODE_TIME: int = 200 * FRAMES_PER_SECOND
-MAX_PICKUP_WAIT_TIME: float = 20.0 * FRAMES_PER_SECOND
-MAX_DELIVERY_WAIT_TIME: float = 20.0 * FRAMES_PER_SECOND
+MAX_EPISODE_TIME: int = 400 * FRAMES_PER_SECOND
+MAX_PICKUP_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
+MAX_DELIVERY_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
 
 AGENT_COLLISION_EPSILON: float = 0.05
 PICKUP_POSITION_EPSILON: float = 0.3
@@ -75,7 +75,11 @@ B2_POS_ITERS: int = 10
 PIXELS_PER_METER: int = 30
 VIEWPORT_DIMENSION_PX: int = int(WORLD_DIMENSION_M) * PIXELS_PER_METER
 
-AGENT_COLORS: typing.List[typing.Tuple[float, float, float]] = [(0.0, 0.0, 0.0), (0.5, 0.5, 0.5)]
+AGENT_COLORS: typing.List[typing.Tuple[float, float, float]] = [
+    (0.5, 0.5, 0.5),
+    (0.8, 0.8, 0.8),
+    (0.0, 0.0, 1.0),
+]
 BORDER_COLOR: typing.Tuple[float, float, float] = (0.5, 0.5, 0.5)
 PICKUP_POINT_COLORS: typing.List[typing.Tuple[float, float, float]] = [
     (0.8, 0.8, 0.8),
@@ -178,21 +182,6 @@ class Warehouse(MultiAgentEnv):
         self._episode_time = 0
 
         # Init agents
-        # racks_diff = (PICKUP_RACKS_ARRANGEMENT[1] - PICKUP_RACKS_ARRANGEMENT[0]) / 2
-        # arrangement = [
-        #     PICKUP_RACKS_ARRANGEMENT[0] - racks_diff,
-        #     *[x + racks_diff for x in PICKUP_RACKS_ARRANGEMENT],
-        # ]
-
-        # agent_positions: typing.List[typing.List[float]] = []
-        # self._agent_bodies = []
-        # for x in arrangement:
-        #     for y in arrangement:
-        #         body = self._world.CreateDynamicBody(position=(x, y))
-        #         _ = body.CreateCircleFixture(radius=AGENT_RADIUS, density=1.0, friction=0.0)
-        #         self._agent_bodies.append(body)
-        #         agent_positions.append([x, y])
-
         racks_diff = (PICKUP_RACKS_ARRANGEMENT[1] - PICKUP_RACKS_ARRANGEMENT[0]) / 2
         arrangement = [
             (PICKUP_RACKS_ARRANGEMENT[0] - racks_diff, PICKUP_RACKS_ARRANGEMENT[0] + racks_diff),
@@ -349,15 +338,14 @@ class Warehouse(MultiAgentEnv):
         self._served_pickup_point_timers[self._served_pickup_point_targets > -1] -= 1.0
 
         # Remove expired pickup and deliveries
-        expired_waiting_pickup_points_mask = self._waiting_pickup_point_timers <= 0.0
+        expired_waiting_pickup_points_mask = self._waiting_pickup_point_timers == 0.0
         self._waiting_pickup_point_targets[expired_waiting_pickup_points_mask] = -1
         self._waiting_pickup_point_timers[expired_waiting_pickup_points_mask] = -1.0
 
-        expired_served_pickup_points_mask = self._served_pickup_point_timers <= 0.0
+        expired_served_pickup_points_mask = self._served_pickup_point_timers == 0.0
         self._agent_availabilities[
             self._served_pickup_point_server_agents[expired_served_pickup_points_mask]
         ] = 1
-
         self._served_pickup_point_server_agents[expired_served_pickup_points_mask] = -1
         self._served_pickup_point_targets[expired_served_pickup_points_mask] = -1
         self._served_pickup_point_timers[expired_served_pickup_points_mask] = -1.0
@@ -571,6 +559,15 @@ class Warehouse(MultiAgentEnv):
                 ],
                 color=color,
             )
+            self._viewer.draw_polygon(
+                [
+                    ((point[0] - 0.3) * PIXELS_PER_METER, (point[1] - 0.3) * PIXELS_PER_METER,),
+                    ((point[0] + 0.3) * PIXELS_PER_METER, (point[1] - 0.3) * PIXELS_PER_METER,),
+                    ((point[0] + 0.3) * PIXELS_PER_METER, (point[1] + 0.3) * PIXELS_PER_METER,),
+                    ((point[0] - 0.3) * PIXELS_PER_METER, (point[1] + 0.3) * PIXELS_PER_METER,),
+                ],
+                color=DELIVERY_POINT_COLORS[0],
+            )
 
         for idx, body in enumerate(self._agent_bodies):
             for fixture in body.fixtures:
@@ -582,7 +579,7 @@ class Warehouse(MultiAgentEnv):
                     )
                 )
                 self._viewer.draw_circle(
-                    (fixture.shape.radius) * 2 / 3 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
+                    (fixture.shape.radius) * 3 / 4 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
                 ).add_attr(
                     rendering.Transform(
                         translation=fixture.body.transform * fixture.shape.pos * PIXELS_PER_METER
@@ -590,7 +587,7 @@ class Warehouse(MultiAgentEnv):
                 )
                 if self._agent_availabilities[idx] == 0:
                     self._viewer.draw_circle(
-                        (fixture.shape.radius) / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
+                        (fixture.shape.radius) / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[2]
                     ).add_attr(
                         rendering.Transform(
                             translation=fixture.body.transform
