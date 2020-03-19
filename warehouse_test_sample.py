@@ -11,7 +11,7 @@ if __name__ == "__main__":
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
         done = dones["__all__"]
         env.render()
-        print(env._episode_time)
+        # print(env._episode_time)
         # break
         # print(action_dict)
         # print(observations)

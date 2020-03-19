@@ -61,9 +61,9 @@ PICKUP_TIME_REWARD_MULTIPLIER: float = 1.0
 DELIVERY_BASE_REWARD: float = 200.0
 DELIVERY_TIME_REWARD_MULTIPLIER: float = 1.0
 
-MAX_EPISODE_TIME: int = 400 * FRAMES_PER_SECOND
-MAX_PICKUP_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
-MAX_DELIVERY_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
+MAX_EPISODE_TIME: int = 200 * FRAMES_PER_SECOND
+MAX_PICKUP_WAIT_TIME: float = 20.0 * FRAMES_PER_SECOND
+MAX_DELIVERY_WAIT_TIME: float = 20.0 * FRAMES_PER_SECOND
 
 AGENT_COLLISION_EPSILON: float = 0.05
 PICKUP_POSITION_EPSILON: float = 0.3
@@ -75,10 +75,16 @@ B2_POS_ITERS: int = 10
 PIXELS_PER_METER: int = 30
 VIEWPORT_DIMENSION_PX: int = int(WORLD_DIMENSION_M) * PIXELS_PER_METER
 
-AGENT_COLOR: typing.Tuple[float, float, float] = (0.0, 0.0, 0.0)
+AGENT_COLORS: typing.List[typing.Tuple[float, float, float]] = [(0.0, 0.0, 0.0), (0.5, 0.5, 0.5)]
 BORDER_COLOR: typing.Tuple[float, float, float] = (0.5, 0.5, 0.5)
-PICKUP_POINT_COLOR: typing.Tuple[float, float, float] = (0.8, 0.8, 0.8)
-DELIVERY_POINT_COLOR: typing.Tuple[float, float, float] = (0.8, 0.8, 0.8)
+PICKUP_POINT_COLORS: typing.List[typing.Tuple[float, float, float]] = [
+    (0.8, 0.8, 0.8),
+    (0.0, 0.0, 1.0),
+]
+DELIVERY_POINT_COLORS: typing.List[typing.Tuple[float, float, float]] = [
+    (0.8, 0.8, 0.8),
+    (0.0, 0.0, 1.0),
+]
 
 
 class Warehouse(MultiAgentEnv):
@@ -534,7 +540,12 @@ class Warehouse(MultiAgentEnv):
                     color=BORDER_COLOR,
                 )
 
-        for point in self._pickup_point_positions:
+        for idx, point in enumerate(self._pickup_point_positions):
+            color = (
+                PICKUP_POINT_COLORS[1]
+                if self._waiting_pickup_point_targets[idx] > -1
+                else PICKUP_POINT_COLORS[0]
+            )
             self._viewer.draw_polygon(
                 [
                     ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] - 0.4) * PIXELS_PER_METER,),
@@ -542,10 +553,15 @@ class Warehouse(MultiAgentEnv):
                     ((point[0] + 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
                     ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
                 ],
-                color=PICKUP_POINT_COLOR,
+                color=color,
             )
 
-        for point in self._delivery_point_positions:
+        for idx, point in enumerate(self._delivery_point_positions):
+            color = (
+                DELIVERY_POINT_COLORS[1]
+                if np.isin(idx, self._served_pickup_point_targets)
+                else DELIVERY_POINT_COLORS[0]
+            )
             self._viewer.draw_polygon(
                 [
                     ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] - 0.4) * PIXELS_PER_METER,),
@@ -553,18 +569,35 @@ class Warehouse(MultiAgentEnv):
                     ((point[0] + 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
                     ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
                 ],
-                color=DELIVERY_POINT_COLOR,
+                color=color,
             )
 
-        for body in self._agent_bodies:
+        for idx, body in enumerate(self._agent_bodies):
             for fixture in body.fixtures:
                 self._viewer.draw_circle(
-                    fixture.shape.radius * PIXELS_PER_METER, 30, color=AGENT_COLOR
+                    fixture.shape.radius * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
                 ).add_attr(
                     rendering.Transform(
                         translation=fixture.body.transform * fixture.shape.pos * PIXELS_PER_METER
                     )
                 )
+                self._viewer.draw_circle(
+                    (fixture.shape.radius) * 2 / 3 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
+                ).add_attr(
+                    rendering.Transform(
+                        translation=fixture.body.transform * fixture.shape.pos * PIXELS_PER_METER
+                    )
+                )
+                if self._agent_availabilities[idx] == 0:
+                    self._viewer.draw_circle(
+                        (fixture.shape.radius) / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
+                    ).add_attr(
+                        rendering.Transform(
+                            translation=fixture.body.transform
+                            * fixture.shape.pos
+                            * PIXELS_PER_METER
+                        )
+                    )
 
         self._viewer.render()
 

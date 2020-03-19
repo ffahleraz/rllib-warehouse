@@ -21,13 +21,15 @@ if __name__ == "__main__":
             # "num_workers": 2,
         },
     )
+    trainer.restore(
+        "/Users/ffahleraz/ray_results/SAC_Warehouse-v0_2020-03-19_00-48-38_y4x_v_g/checkpoint_201/checkpoint-201"
+    )
 
-    for i in range(2000):
-        print("==> Iteration", i)
-
-        result = trainer.train()
-        print(pretty_print(result))
-
-        if i % 50 == 0:
-            checkpoint = trainer.save()
-            print("==> Checkpoint saved at", checkpoint)
+    env = Warehouse()
+    observations = env.reset()
+    done = False
+    while not done:
+        action_dict = {f"{i}": trainer.compute_action(observations[f"{i}"]) for i in range(4)}
+        observations, rewards, dones, infos = env.step(action_dict=action_dict)
+        done = dones["__all__"]
+        env.render()
