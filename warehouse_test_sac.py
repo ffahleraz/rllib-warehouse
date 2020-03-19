@@ -16,9 +16,8 @@ if __name__ == "__main__":
             "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
             "normalize_actions": False,
             "no_done_at_end": False,
-            "learning_starts": 10000,
-            "timesteps_per_iteration": 1000,
-            # "num_workers": 2,
+            "learning_starts": 20000,
+            "timesteps_per_iteration": 4000,
         },
     )
 
@@ -29,5 +28,5 @@ if __name__ == "__main__":
         print(pretty_print(result))
 
         if i % 50 == 0:
-            checkpoint = trainer.save()
+            checkpoint = trainer.save("saves/0")
             print("==> Checkpoint saved at", checkpoint)
