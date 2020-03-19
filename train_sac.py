@@ -47,5 +47,4 @@ if __name__ == "__main__":
     )
     parser.add_argument("-l", "--load", type=str, help="path to the folder to load model")
     args = parser.parse_args()
-    print(args)
     main(save_dir=args.save, load_dir=args.load, num_iterations=args.num_iterations)
