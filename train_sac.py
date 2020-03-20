@@ -18,9 +18,12 @@ def main(save_dir: str, load_dir: str, num_iterations: int) -> None:
             "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
             "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
             "normalize_actions": False,
-            "no_done_at_end": False,
-            "learning_starts": 20000,
+            "no_done_at_end": True,
             "timesteps_per_iteration": 4000,
+            "buffer_size": int(1e4),
+            "learning_starts": 20000,
+            "num_gpus": 1,
+            "num_workers": 2,
         },
     )
     if load_dir is not None:
