@@ -26,11 +26,11 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
             "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
             "normalize_actions": False,
             "no_done_at_end": True,
-            "timesteps_per_iteration": 4000,
-            "buffer_size": int(1e5),
-            "learning_starts": 20000,
-            "num_gpus": 0,
-            "num_workers": 2,
+            "timesteps_per_iteration": 1000,
+            "buffer_size": int(1e6),
+            "learning_starts": 10000,
+            "num_gpus": 1,
+            "num_workers": 0,
         },
     )
 
