@@ -8,7 +8,7 @@ from ray.tune.logger import pretty_print
 from warehouse import Warehouse
 
 
-def main(save_dir: str, load_dir: str, num_iterations: int) -> None:
+def main(save_dir: str, restore_dir: str, num_iterations: int) -> None:
     ray.init()
 
     register_env("Warehouse-v0", lambda _: Warehouse())
@@ -20,14 +20,14 @@ def main(save_dir: str, load_dir: str, num_iterations: int) -> None:
             "normalize_actions": False,
             "no_done_at_end": True,
             "timesteps_per_iteration": 4000,
-            "buffer_size": int(1e4),
+            "buffer_size": int(1e5),
             "learning_starts": 20000,
             "num_gpus": 1,
             "num_workers": 2,
         },
     )
-    if load_dir is not None:
-        trainer.restore(load_dir)
+    if restore_dir is not None:
+        trainer.restore(restore_dir)
 
     for i in range(num_iterations):
         print("==> Iteration Start")
@@ -48,6 +48,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s", "--save", type=str, required=True, help="path to the folder to save model"
     )
-    parser.add_argument("-l", "--load", type=str, help="path to the folder to load model")
+    parser.add_argument("-l", "--restore", type=str, help="path to the folder to restore model")
     args = parser.parse_args()
-    main(save_dir=args.save, load_dir=args.load, num_iterations=args.num_iterations)
+    main(save_dir=args.save, restore_dir=args.restore, num_iterations=args.num_iterations)
