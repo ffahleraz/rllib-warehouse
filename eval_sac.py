@@ -1,3 +1,5 @@
+import argparse
+
 import ray
 from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
@@ -5,25 +7,13 @@ from ray.tune.logger import pretty_print
 
 from warehouse import Warehouse
 
-if __name__ == "__main__":
+
+def main(restore_dir: str) -> None:
     ray.init()
 
     register_env("Warehouse-v0", lambda _: Warehouse())
-    trainer = SACTrainer(
-        env="Warehouse-v0",
-        config={
-            "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
-            "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
-            "normalize_actions": False,
-            "no_done_at_end": False,
-            "learning_starts": 10000,
-            "timesteps_per_iteration": 1000,
-            # "num_workers": 2,
-        },
-    )
-    trainer.restore(
-        "/Users/ffahleraz/ray_results/SAC_Warehouse-v0_2020-03-19_00-48-38_y4x_v_g/checkpoint_201/checkpoint-201"
-    )
+    trainer = SACTrainer(env="Warehouse-v0", config={"normalize_actions": False})
+    trainer.restore(restore_dir)
 
     env = Warehouse()
     observations = env.reset()
@@ -33,3 +23,10 @@ if __name__ == "__main__":
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
         done = dones["__all__"]
         env.render()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("restore_dir", type=str, help="path to the folder to restore model")
+    args = parser.parse_args()
+    main(restore_dir=args.restore_dir)

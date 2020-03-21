@@ -46,8 +46,8 @@ if __name__ == "__main__":
         "-n", "--num_iterations", type=int, required=True, help="number of training iterations"
     )
     parser.add_argument(
-        "-s", "--save", type=str, required=True, help="path to the folder to save model"
+        "-s", "--save_dir", type=str, required=True, help="path to the folder to save model"
     )
-    parser.add_argument("-l", "--restore", type=str, help="path to the folder to restore model")
+    parser.add_argument("-r", "--restore_dir", type=str, help="path to the folder to restore model")
     args = parser.parse_args()
-    main(save_dir=args.save, restore_dir=args.restore, num_iterations=args.num_iterations)
+    main(save_dir=args.save_dir, restore_dir=args.restore_dir, num_iterations=args.num_iterations)

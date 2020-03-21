@@ -41,8 +41,8 @@ if __name__ == "__main__":
         "-num", "--num_iterations", type=int, required=True, help="number of training iterations"
     )
     parser.add_argument("-n", "--name", type=str, required=True, help="experiment name")
-    parser.add_argument("-r", "--restore", type=str, help="path to the folder to restore model")
+    parser.add_argument("-r", "--restore_dir", type=str, help="path to the folder to restore model")
     args = parser.parse_args()
     main(
-        experiment_name=args.name, restore_dir=args.restore, num_iterations=args.num_iterations,
+        experiment_name=args.name, restore_dir=args.restore_dir, num_iterations=args.num_iterations,
     )
