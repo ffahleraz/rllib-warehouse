@@ -171,8 +171,6 @@ class Warehouse(MultiAgentEnv):
         racks_diff = (PICKUP_RACKS_ARRANGEMENT[1] - PICKUP_RACKS_ARRANGEMENT[0]) / 2
         arrangement = [
             (PICKUP_RACKS_ARRANGEMENT[0] - racks_diff, PICKUP_RACKS_ARRANGEMENT[0] + racks_diff),
-            # (PICKUP_RACKS_ARRANGEMENT[0] + racks_diff, PICKUP_RACKS_ARRANGEMENT[0] - racks_diff),
-            # (PICKUP_RACKS_ARRANGEMENT[0] + racks_diff, PICKUP_RACKS_ARRANGEMENT[1] + racks_diff),
             (PICKUP_RACKS_ARRANGEMENT[1] + racks_diff, PICKUP_RACKS_ARRANGEMENT[0] + racks_diff),
         ]
 
@@ -255,7 +253,6 @@ class Warehouse(MultiAgentEnv):
             self.observation_space["other_delivery_targets"].high
             - self.observation_space["other_delivery_targets"].low
         ) / 2
-        other_delivery_targets[:, -1] = np.zeros(NUM_AGENTS - 1)
 
         waiting_pickup_points_mask = self._waiting_pickup_point_targets > -1
         requests = self._pickup_point_positions[waiting_pickup_points_mask]
@@ -265,7 +262,6 @@ class Warehouse(MultiAgentEnv):
                 self._delivery_point_positions[
                     self._waiting_pickup_point_targets[waiting_pickup_points_mask]
                 ],
-                self._waiting_pickup_point_timers[waiting_pickup_points_mask][:, np.newaxis],
             ),
         )
 
@@ -428,7 +424,6 @@ class Warehouse(MultiAgentEnv):
         ] = self._delivery_point_positions[
             self._served_pickup_point_targets[served_pickup_points_mask]
         ]
-        agent_delivery_targets = np.hstack((agent_delivery_targets, np.zeros((NUM_AGENTS, 1))))
 
         waiting_pickup_points_mask = self._waiting_pickup_point_targets > -1
         requests = self._pickup_point_positions[waiting_pickup_points_mask]
@@ -438,7 +433,6 @@ class Warehouse(MultiAgentEnv):
                 self._delivery_point_positions[
                     self._waiting_pickup_point_targets[waiting_pickup_points_mask]
                 ],
-                self._waiting_pickup_point_timers[waiting_pickup_points_mask][:, np.newaxis],
             ),
         )
 

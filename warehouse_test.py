@@ -11,7 +11,10 @@ NUM_AGENTS: int = warehouse.NUM_AGENTS
 
 if __name__ == "__main__":
     env = Warehouse()
+
     observations = env.reset()
+    assert env.observation_space.contains(observations["0"])
+
     done = False
     while not done:
         action_dict = {f"{i}": np.array([-1.0, -1.0], dtype=np.float32) for i in range(NUM_AGENTS)}
@@ -25,5 +28,7 @@ if __name__ == "__main__":
         action_dict["0"] = action
 
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
+        assert env.observation_space.contains(observations["0"])
+
         done = dones["__all__"]
         env.render()
