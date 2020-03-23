@@ -40,11 +40,11 @@ from Box2D.b2 import (
 #         point that is already being served)
 
 # Environment
-AREA_DIMENSION_M: float = 12.0
+AREA_DIMENSION_M: float = 8.0
 BORDER_WIDTH_M: float = 1.0
 WORLD_DIMENSION_M: float = AREA_DIMENSION_M + 2 * BORDER_WIDTH_M
 AGENT_RADIUS: float = 0.4
-PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0]
+PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0]
 FRAMES_PER_SECOND: int = 10
 
 NUM_AGENTS: int = 2
@@ -55,7 +55,7 @@ NUM_REQUESTS: int = 2
 PICKUP_REWARD: float = 1.0
 DELIVERY_REWARD: float = 1.0
 
-MAX_EPISODE_TIME: int = 80 * FRAMES_PER_SECOND
+MAX_EPISODE_TIME: int = 40 * FRAMES_PER_SECOND
 MAX_PICKUP_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
 
 PICKUP_POSITION_TOLERANCE: float = 0.3
@@ -168,10 +168,9 @@ class Warehouse(MultiAgentEnv):
         self._episode_time = 0
 
         # Init agents
-        racks_diff = (PICKUP_RACKS_ARRANGEMENT[1] - PICKUP_RACKS_ARRANGEMENT[0]) / 2
         arrangement = [
-            (PICKUP_RACKS_ARRANGEMENT[0] - racks_diff, PICKUP_RACKS_ARRANGEMENT[0] + racks_diff),
-            (PICKUP_RACKS_ARRANGEMENT[1] + racks_diff, PICKUP_RACKS_ARRANGEMENT[0] + racks_diff),
+            (3.0, 3.0),
+            (WORLD_DIMENSION_M - 3.0, WORLD_DIMENSION_M - 3.0),
         ]
 
         agent_positions: typing.List[typing.List[float]] = []
