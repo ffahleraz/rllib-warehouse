@@ -8,6 +8,9 @@ from ray.tune.logger import pretty_print
 from warehouse import Warehouse
 
 
+NUM_AGENTS: int = 2  # 4
+
+
 def main(restore_dir: str) -> None:
     ray.init()
 
@@ -19,7 +22,9 @@ def main(restore_dir: str) -> None:
     observations = env.reset()
     done = False
     while not done:
-        action_dict = {f"{i}": trainer.compute_action(observations[f"{i}"]) for i in range(4)}
+        action_dict = {
+            f"{i}": trainer.compute_action(observations[f"{i}"]) for i in range(NUM_AGENTS)
+        }
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
         done = dones["__all__"]
         env.render()

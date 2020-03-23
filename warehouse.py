@@ -55,7 +55,7 @@ NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
 NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
 NUM_REQUESTS: int = 2  # 4
 
-COLLISION_REWARD: float = -10.0
+# AGENT_COLLISION_REWARD: float = -10.0
 PICKUP_BASE_REWARD: float = 200.0
 PICKUP_TIME_REWARD_MULTIPLIER: float = 1.0
 DELIVERY_BASE_REWARD: float = 200.0
@@ -65,7 +65,7 @@ MAX_EPISODE_TIME: int = 40 * FRAMES_PER_SECOND  # 400 * FRAMES_PER_SECOND
 MAX_PICKUP_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
 MAX_DELIVERY_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
 
-AGENT_COLLISION_EPSILON: float = 0.05
+# AGENT_COLLISION_EPSILON: float = 0.05
 PICKUP_POSITION_EPSILON: float = 0.3
 DELIVERY_POSITION_EPSILON: float = 0.3
 
@@ -319,19 +319,19 @@ class Warehouse(MultiAgentEnv):
             self._agent_positions[idx][0] = body.position[0]
             self._agent_positions[idx][1] = body.position[1]
 
-        # Detect agent each-other collisions and calculate rewards
-        agent_and_agent_distances = np.linalg.norm(
-            np.repeat(self._agent_positions[np.newaxis, :, :], NUM_AGENTS, axis=0)
-            - np.repeat(self._agent_positions[:, np.newaxis, :], NUM_AGENTS, axis=1),
-            axis=2,
-        )
-        agent_collision_counts = (
-            np.count_nonzero(
-                agent_and_agent_distances < 2 * AGENT_RADIUS + AGENT_COLLISION_EPSILON, axis=1
-            )
-            - 1
-        )
-        agent_rewards = agent_collision_counts * COLLISION_REWARD
+        # # Detect agent each-other collisions and calculate rewards
+        # agent_and_agent_distances = np.linalg.norm(
+        #     np.repeat(self._agent_positions[np.newaxis, :, :], NUM_AGENTS, axis=0)
+        #     - np.repeat(self._agent_positions[:, np.newaxis, :], NUM_AGENTS, axis=1),
+        #     axis=2,
+        # )
+        # agent_collision_counts = (
+        #     np.count_nonzero(
+        #         agent_and_agent_distances < 2 * AGENT_RADIUS + AGENT_COLLISION_EPSILON, axis=1
+        #     )
+        #     - 1
+        # )
+        # agent_rewards = agent_collision_counts * AGENT_COLLISION_REWARD
 
         # Decrement timers
         self._waiting_pickup_point_timers[self._waiting_pickup_point_targets > -1] -= 1.0
@@ -375,6 +375,7 @@ class Warehouse(MultiAgentEnv):
         ]
 
         # Calculate pickup rewards
+        agent_rewards = np.zeros((NUM_AGENTS,), dtype=np.float32)
         agent_rewards[new_served_pickup_points_server_agents] += (
             PICKUP_BASE_REWARD
             + self._waiting_pickup_point_timers[new_served_pickup_points_mask]

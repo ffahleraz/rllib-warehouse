@@ -26,9 +26,9 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
             "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
             "normalize_actions": False,
             "no_done_at_end": True,
-            "timesteps_per_iteration": 1000,
+            "timesteps_per_iteration": 400,
             "buffer_size": int(1e6),
-            "learning_starts": 10000,
+            "learning_starts": 4000,
             "num_gpus": 1,
             "num_workers": 0,
         },
@@ -37,12 +37,14 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("experiment_name", type=str, help="experiment name")
     parser.add_argument(
-        "-num", "--num_iterations", type=int, required=True, help="number of training iterations"
+        "-n", "--num_iterations", type=int, required=True, help="number of training iterations"
     )
-    parser.add_argument("-n", "--name", type=str, required=True, help="experiment name")
     parser.add_argument("-r", "--restore_dir", type=str, help="path to the folder to restore model")
     args = parser.parse_args()
     main(
-        experiment_name=args.name, restore_dir=args.restore_dir, num_iterations=args.num_iterations,
+        experiment_name=args.experiment_name,
+        restore_dir=args.restore_dir,
+        num_iterations=args.num_iterations,
     )
