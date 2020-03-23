@@ -15,13 +15,13 @@ def main(save_dir: str, restore_dir: str, num_iterations: int) -> None:
     trainer = SACTrainer(
         env="Warehouse-v0",
         config={
-            "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
-            "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256),},
+            "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
+            "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
             "normalize_actions": False,
             "no_done_at_end": True,
-            "timesteps_per_iteration": 400,
+            "timesteps_per_iteration": 800,
             "buffer_size": int(1e6),
-            "learning_starts": 4000,
+            "learning_starts": 8000,
             "num_gpus": 1,
             "num_workers": 0,
         },

@@ -2,10 +2,11 @@ import typing
 
 import numpy as np
 
+import warehouse
 from warehouse import Warehouse
 
 
-NUM_AGENTS: int = 2  # 4
+NUM_AGENTS: int = warehouse.NUM_AGENTS
 
 
 if __name__ == "__main__":

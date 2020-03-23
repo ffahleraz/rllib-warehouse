@@ -31,9 +31,6 @@ from Box2D.b2 import (
 #       - self._served_pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
 #           - -1: not served or not waiting
 #           - [0, NUM_DELIVERY_POINTS): target delivery point idx
-#       - self._served_pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32):
-#           - -1.0: not served or not waiting
-#           - [0.0, oo): elapsed time since served
 #   - Game mechanism:
 #       - There will always be NUM_REQUESTS requests for pickups in which all the pickup points are
 #         unique but the delivery points may be not
@@ -50,24 +47,19 @@ AGENT_RADIUS: float = 0.4
 PICKUP_RACKS_ARRANGEMENT: typing.List[float] = [5.0, 9.0]
 FRAMES_PER_SECOND: int = 10
 
-NUM_AGENTS: int = 2  # 4
+NUM_AGENTS: int = 2
 NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
 NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
-NUM_REQUESTS: int = 2  # 4
+NUM_REQUESTS: int = 2
 
-# AGENT_COLLISION_REWARD: float = -10.0
-PICKUP_BASE_REWARD: float = 200.0
-PICKUP_TIME_REWARD_MULTIPLIER: float = 1.0
-DELIVERY_BASE_REWARD: float = 200.0
-DELIVERY_TIME_REWARD_MULTIPLIER: float = 1.0
+PICKUP_REWARD: float = 1.0
+DELIVERY_REWARD: float = 1.0
 
-MAX_EPISODE_TIME: int = 40 * FRAMES_PER_SECOND  # 400 * FRAMES_PER_SECOND
+MAX_EPISODE_TIME: int = 80 * FRAMES_PER_SECOND
 MAX_PICKUP_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
-MAX_DELIVERY_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
 
-# AGENT_COLLISION_EPSILON: float = 0.05
-PICKUP_POSITION_EPSILON: float = 0.3
-DELIVERY_POSITION_EPSILON: float = 0.3
+PICKUP_POSITION_TOLERANCE: float = 0.3
+DELIVERY_POSITION_TOLERANCE: float = 0.3
 
 # Rendering
 B2_VEL_ITERS: int = 10
@@ -111,8 +103,8 @@ class Warehouse(MultiAgentEnv):
                 ),
                 "self_availability": gym.spaces.MultiBinary(1),
                 "self_delivery_target": gym.spaces.Box(
-                    low=np.array([0.0, 0.0, 0.0]),
-                    high=np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M, MAX_DELIVERY_WAIT_TIME]),
+                    low=np.array([0.0, 0.0]),
+                    high=np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M]),
                     dtype=np.float32,
                 ),
                 "other_positions": gym.spaces.Box(
@@ -123,13 +115,9 @@ class Warehouse(MultiAgentEnv):
                 ),
                 "other_availabilities": gym.spaces.MultiBinary(NUM_AGENTS - 1),
                 "other_delivery_targets": gym.spaces.Box(
-                    low=np.repeat(
-                        np.array([0.0, 0.0, 0.0])[np.newaxis, :,], NUM_AGENTS - 1, axis=0
-                    ),
+                    low=np.repeat(np.array([0.0, 0.0])[np.newaxis, :,], NUM_AGENTS - 1, axis=0),
                     high=np.repeat(
-                        np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M, MAX_DELIVERY_WAIT_TIME])[
-                            np.newaxis, :,
-                        ],
+                        np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M])[np.newaxis, :,],
                         NUM_AGENTS - 1,
                         axis=0,
                     ),
@@ -137,7 +125,7 @@ class Warehouse(MultiAgentEnv):
                 ),
                 "requests": gym.spaces.Box(
                     low=np.repeat(
-                        np.array([0.0, 0.0, 0.0, 0.0, 0.0])[np.newaxis, :,], NUM_REQUESTS, axis=0,
+                        np.array([0.0, 0.0, 0.0, 0.0])[np.newaxis, :,], NUM_REQUESTS, axis=0,
                     ),
                     high=np.repeat(
                         np.array(
@@ -146,7 +134,6 @@ class Warehouse(MultiAgentEnv):
                                 WORLD_DIMENSION_M,
                                 WORLD_DIMENSION_M,
                                 WORLD_DIMENSION_M,
-                                MAX_PICKUP_WAIT_TIME,
                             ]
                         )[np.newaxis, :,],
                         NUM_REQUESTS,
@@ -174,7 +161,6 @@ class Warehouse(MultiAgentEnv):
 
         self._served_pickup_point_server_agents = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
         self._served_pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
-        self._served_pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.float32)
 
         self._episode_time: int = 0
 
@@ -263,7 +249,6 @@ class Warehouse(MultiAgentEnv):
         # Init served request states
         self._served_pickup_point_server_agents = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
         self._served_pickup_point_targets = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
-        self._served_pickup_point_timers = np.full(NUM_PICKUP_POINTS, -1.0, dtype=np.float32)
 
         # Compute observations
         other_delivery_targets = (
@@ -319,36 +304,11 @@ class Warehouse(MultiAgentEnv):
             self._agent_positions[idx][0] = body.position[0]
             self._agent_positions[idx][1] = body.position[1]
 
-        # # Detect agent each-other collisions and calculate rewards
-        # agent_and_agent_distances = np.linalg.norm(
-        #     np.repeat(self._agent_positions[np.newaxis, :, :], NUM_AGENTS, axis=0)
-        #     - np.repeat(self._agent_positions[:, np.newaxis, :], NUM_AGENTS, axis=1),
-        #     axis=2,
-        # )
-        # agent_collision_counts = (
-        #     np.count_nonzero(
-        #         agent_and_agent_distances < 2 * AGENT_RADIUS + AGENT_COLLISION_EPSILON, axis=1
-        #     )
-        #     - 1
-        # )
-        # agent_rewards = agent_collision_counts * AGENT_COLLISION_REWARD
-
-        # Decrement timers
+        # Remove expired pickup points
         self._waiting_pickup_point_timers[self._waiting_pickup_point_targets > -1] -= 1.0
-        self._served_pickup_point_timers[self._served_pickup_point_targets > -1] -= 1.0
-
-        # Remove expired pickup and deliveries
         expired_waiting_pickup_points_mask = self._waiting_pickup_point_timers == 0.0
         self._waiting_pickup_point_targets[expired_waiting_pickup_points_mask] = -1
         self._waiting_pickup_point_timers[expired_waiting_pickup_points_mask] = -1.0
-
-        expired_served_pickup_points_mask = self._served_pickup_point_timers == 0.0
-        self._agent_availabilities[
-            self._served_pickup_point_server_agents[expired_served_pickup_points_mask]
-        ] = 1
-        self._served_pickup_point_server_agents[expired_served_pickup_points_mask] = -1
-        self._served_pickup_point_targets[expired_served_pickup_points_mask] = -1
-        self._served_pickup_point_timers[expired_served_pickup_points_mask] = -1.0
 
         # Detect pickups
         pickup_point_and_agent_distances = np.linalg.norm(
@@ -357,7 +317,7 @@ class Warehouse(MultiAgentEnv):
             axis=2,
         )
         pickup_point_and_agent_collisions_mask = (
-            pickup_point_and_agent_distances < PICKUP_POSITION_EPSILON
+            pickup_point_and_agent_distances < PICKUP_POSITION_TOLERANCE
         )
         new_served_pickup_point_candidates_mask = np.max(
             pickup_point_and_agent_collisions_mask, axis=1
@@ -376,11 +336,7 @@ class Warehouse(MultiAgentEnv):
 
         # Calculate pickup rewards
         agent_rewards = np.zeros((NUM_AGENTS,), dtype=np.float32)
-        agent_rewards[new_served_pickup_points_server_agents] += (
-            PICKUP_BASE_REWARD
-            + self._waiting_pickup_point_timers[new_served_pickup_points_mask]
-            * PICKUP_TIME_REWARD_MULTIPLIER
-        )
+        agent_rewards[new_served_pickup_points_server_agents] += PICKUP_REWARD
 
         # Update states
         self._served_pickup_point_server_agents[
@@ -389,7 +345,6 @@ class Warehouse(MultiAgentEnv):
         self._served_pickup_point_targets[
             new_served_pickup_points_mask
         ] = self._waiting_pickup_point_targets[new_served_pickup_points_mask]
-        self._served_pickup_point_timers[new_served_pickup_points_mask] = MAX_DELIVERY_WAIT_TIME
 
         self._agent_availabilities[new_served_pickup_points_server_agents] = 0
 
@@ -421,7 +376,7 @@ class Warehouse(MultiAgentEnv):
             axis=2,
         )
         delivery_point_and_agent_collisions_mask = (
-            delivery_point_and_agent_distances < DELIVERY_POSITION_EPSILON
+            delivery_point_and_agent_distances < DELIVERY_POSITION_TOLERANCE
         )
         completed_delivery_point_candidates_mask = np.max(
             delivery_point_and_agent_collisions_mask, axis=1
@@ -445,11 +400,9 @@ class Warehouse(MultiAgentEnv):
         )
 
         # Calculate delivery rewards
-        agent_rewards[self._served_pickup_point_server_agents[completed_pickup_points_mask]] += (
-            DELIVERY_BASE_REWARD
-            + self._served_pickup_point_timers[completed_pickup_points_mask]
-            * DELIVERY_TIME_REWARD_MULTIPLIER
-        )
+        agent_rewards[
+            self._served_pickup_point_server_agents[completed_pickup_points_mask]
+        ] += DELIVERY_REWARD
 
         # Update states
         self._agent_availabilities[
@@ -457,7 +410,6 @@ class Warehouse(MultiAgentEnv):
         ] = 1
         self._served_pickup_point_server_agents[completed_pickup_points_mask] = -1
         self._served_pickup_point_targets[completed_pickup_points_mask] = -1
-        self._served_pickup_point_timers[completed_pickup_points_mask] = -1.0
 
         # Compute observations
         served_pickup_points_mask = self._served_pickup_point_targets > -1

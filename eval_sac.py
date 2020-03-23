@@ -5,10 +5,11 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 
+import warehouse
 from warehouse import Warehouse
 
 
-NUM_AGENTS: int = 2  # 4
+NUM_AGENTS: int = warehouse.NUM_AGENTS
 
 
 def main(restore_dir: str) -> None:

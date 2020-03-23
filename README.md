@@ -2,10 +2,5 @@
 
 Setup:
 ```
-$ pip install pandas
-$ pip install tensorflow
-$ pip install tensorflow-probability
-$ pip install 'ray[debug]'
-$ pip install 'ray[rllib]'
-$ pip install box2d-py
+$ pip install pandas tensorflow tensorflow-probability 'ray[debug]' 'ray[rllib]' box2d-py
 ```
