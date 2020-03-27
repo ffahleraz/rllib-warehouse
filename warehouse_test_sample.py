@@ -1,17 +1,20 @@
+import time
+
 from warehouse import Warehouse
+
 
 if __name__ == "__main__":
     env = Warehouse()
-    # print(env.observation_space.sample())
     observations = env.reset()
-    # print(observations["0"])
     done = False
     while not done:
         action_dict = {str(i): env.action_space.sample() for i in range(len(observations))}
+
+        start_time = time.time()
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
-        done = dones["__all__"]
+        step_fps = 1.0 / (time.time() - start_time)
         env.render()
-        # print(env._episode_time)
-        # break
-        # print(action_dict)
-        # print(observations)
+        render_fps = 1.0 / (time.time() - start_time)
+
+        done = dones["__all__"]
+        print(f"Step FPS: {step_fps}, render FPS: {render_fps}")
