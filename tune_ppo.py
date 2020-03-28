@@ -14,24 +14,13 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
     register_env("Warehouse-v0", lambda _: Warehouse())
 
     tune.run(
-        "SAC",
+        "PPO",
         name=experiment_name,
         stop={"training_iteration": num_iterations},
         restore=restore_dir,
         checkpoint_freq=10,
         checkpoint_at_end=True,
-        config={
-            "env": "Warehouse-v0",
-            "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
-            "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
-            "normalize_actions": False,
-            "no_done_at_end": True,
-            "timesteps_per_iteration": 800,
-            "buffer_size": int(1e5),
-            "learning_starts": 8000,
-            "num_gpus": 1,
-            "num_workers": 1,
-        },
+        config={"env": "Warehouse-v0", "num_gpus": 1, "num_workers": 1,},
     )
 
 
