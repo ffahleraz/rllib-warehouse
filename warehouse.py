@@ -38,6 +38,8 @@ from Box2D.b2 import (
 #         from the existing requests, but may be the same as a pickup point that is already being
 #         served) and a random delivery point (may be the same as existing requests or a delivery
 #         point that is already being served)
+#   - Constants:
+#       - NUM_REQUESTS >= NUM_AGENTS
 
 # Environment
 AREA_DIMENSION_M: float = 8.0
