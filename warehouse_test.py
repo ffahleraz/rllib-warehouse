@@ -16,5 +16,8 @@ if __name__ == "__main__":
         env.render()
         render_fps = 1.0 / (time.time() - start_time)
 
+        for _, observation in observations.items():
+            assert env.observation_space.contains(observation)
+
         done = dones["__all__"]
         print(f"Step FPS: {step_fps}, render FPS: {render_fps}")

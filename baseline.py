@@ -58,7 +58,6 @@ if __name__ == "__main__":
         env.render()
         render_fps = 1.0 / (time.time() - start_time)
 
-        assert env.observation_space.contains(observations["0"])
         acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(NUM_AGENTS)]
         done = dones["__all__"]
 
