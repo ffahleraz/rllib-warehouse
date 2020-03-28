@@ -1,4 +1,4 @@
-import typing
+from typing import Dict
 import time
 
 import numpy as np
@@ -16,8 +16,8 @@ class WarehouseSolver:
         self._agent_pickup_targets = [-1] * NUM_AGENTS
 
     def compute_action(
-        self, observations: typing.Dict[str, typing.Dict[str, np.ndarray]]
-    ) -> typing.Dict[str, np.ndarray]:
+        self, observations: Dict[str, Dict[str, np.ndarray]]
+    ) -> Dict[str, np.ndarray]:
         action_dict = {}
 
         for i in range(NUM_AGENTS):
