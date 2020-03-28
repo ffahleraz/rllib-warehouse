@@ -155,7 +155,6 @@ class Warehouse(MultiAgentEnv):
         self._border_bodies: List[dynamicBody] = []
 
         self._agent_positions = np.zeros((NUM_AGENTS, 2), dtype=np.float32)
-        self._agent_availabilities = np.zeros(NUM_AGENTS, dtype=np.int8)
         self._agent_delivery_targets = np.zeros(NUM_AGENTS, dtype=np.int32)
 
         self._delivery_point_positions = np.zeros((NUM_DELIVERY_POINTS, 2), dtype=np.float32)
@@ -240,10 +239,8 @@ class Warehouse(MultiAgentEnv):
         self._pickup_point_timers[new_waiting_pickup_points] = MAX_PICKUP_WAIT_TIME
 
         # Compute observations
-        other_delivery_targets = (
-            Warehouse.observation_space["other_delivery_targets"].high
-            - Warehouse.observation_space["other_delivery_targets"].low
-        ) / 2
+        agent_availabilities = np.ones(NUM_AGENTS, dtype=np.int32)
+        agent_delivery_target_positions = np.zeros((NUM_AGENTS, 2), dtype=np.float32)
 
         waiting_pickup_points_mask = self._pickup_point_targets > -1
         requests = self._pickup_point_positions[waiting_pickup_points_mask]
@@ -259,11 +256,11 @@ class Warehouse(MultiAgentEnv):
         return {
             str(i): {
                 "self_position": self._agent_positions[i],
-                "self_availability": self._agent_availabilities[np.newaxis, i],
-                "self_delivery_target": other_delivery_targets[0],
+                "self_availability": agent_availabilities[np.newaxis, i],
+                "self_delivery_target": agent_delivery_target_positions[i],
                 "other_positions": np.delete(self._agent_positions, i, axis=0),
-                "other_availabilities": np.delete(self._agent_availabilities, i, axis=0),
-                "other_delivery_targets": other_delivery_targets,
+                "other_availabilities": np.delete(agent_availabilities, i, axis=0),
+                "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0),
                 "requests": requests,
             }
             for i in range(NUM_AGENTS)
@@ -483,6 +480,3 @@ class Warehouse(MultiAgentEnv):
                     )
 
         self._viewer.render()
-
-    def close(self) -> None:
-        pass

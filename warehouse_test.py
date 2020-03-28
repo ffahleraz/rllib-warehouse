@@ -6,6 +6,9 @@ from warehouse import Warehouse
 if __name__ == "__main__":
     env = Warehouse()
     observations = env.reset()
+    for _, observation in observations.items():
+        assert env.observation_space.contains(observation)
+
     done = False
     while not done:
         action_dict = {str(i): env.action_space.sample() for i in range(len(observations))}
