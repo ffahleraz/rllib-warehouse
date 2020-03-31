@@ -3,12 +3,12 @@ import time
 
 import numpy as np
 
-import warehouse
-from warehouse import Warehouse
+import continuous
+from continuous import WarehouseContinuous
 
 
-NUM_AGENTS: int = warehouse.NUM_AGENTS
-NUM_REQUESTS: int = warehouse.NUM_REQUESTS
+NUM_AGENTS: int = continuous.NUM_AGENTS
+NUM_REQUESTS: int = continuous.NUM_REQUESTS
 
 
 class WarehouseSolver:
@@ -41,7 +41,7 @@ class WarehouseSolver:
 
 
 if __name__ == "__main__":
-    env = Warehouse()
+    env = WarehouseContinuous()
     solver = WarehouseSolver()
 
     observations = env.reset()

@@ -12,6 +12,9 @@ from Box2D.b2 import (
     dynamicBody,
 )
 
+__all__ = ["WarehouseContinuous"]
+
+
 # Engineering notes:
 #   - Each agent is identified by int[0, NUM_AGENTS) in string type.
 #   - Zero coordinate for the env is on the bottom left, this is then transformed to
@@ -35,7 +38,7 @@ from Box2D.b2 import (
 #         from the existing requests, but may be the same as a pickup point that is already being
 #         served) and a random delivery point (may be the same as existing requests or a delivery
 #         point that is already being served)
-#   - Constants:
+#   - Constant Assumptions:
 #       - NUM_REQUESTS >= NUM_AGENTS
 
 # Environment
@@ -86,7 +89,7 @@ DELIVERY_POINT_COLORS: List[Tuple[float, float, float]] = [
 ]
 
 
-class Warehouse(MultiAgentEnv):
+class WarehouseContinuous(MultiAgentEnv):
     metadata = {
         "render.modes": ["human"],
         "video.frames_per_second": FRAMES_PER_SECOND,
@@ -104,9 +107,7 @@ class Warehouse(MultiAgentEnv):
             ),
             "self_availability": gym.spaces.MultiBinary(1),
             "self_delivery_target": gym.spaces.Box(
-                low=np.array([0.0, 0.0]),
-                high=np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M]),
-                dtype=np.float32,
+                low=0.0, high=WORLD_DIMENSION_M, shape=(2,), dtype=np.float32,
             ),
             "other_positions": gym.spaces.Box(
                 low=BORDER_WIDTH_M,
@@ -116,37 +117,16 @@ class Warehouse(MultiAgentEnv):
             ),
             "other_availabilities": gym.spaces.MultiBinary(NUM_AGENTS - 1),
             "other_delivery_targets": gym.spaces.Box(
-                low=np.repeat(np.array([0.0, 0.0])[np.newaxis, :,], NUM_AGENTS - 1, axis=0),
-                high=np.repeat(
-                    np.array([WORLD_DIMENSION_M, WORLD_DIMENSION_M])[np.newaxis, :,],
-                    NUM_AGENTS - 1,
-                    axis=0,
-                ),
-                dtype=np.float32,
+                low=0.0, high=WORLD_DIMENSION_M, shape=(NUM_AGENTS - 1, 2), dtype=np.float32,
             ),
             "requests": gym.spaces.Box(
-                low=np.repeat(
-                    np.array([0.0, 0.0, 0.0, 0.0])[np.newaxis, :,], NUM_REQUESTS, axis=0,
-                ),
-                high=np.repeat(
-                    np.array(
-                        [
-                            WORLD_DIMENSION_M,
-                            WORLD_DIMENSION_M,
-                            WORLD_DIMENSION_M,
-                            WORLD_DIMENSION_M,
-                        ]
-                    )[np.newaxis, :,],
-                    NUM_REQUESTS,
-                    axis=0,
-                ),
-                dtype=np.float32,
+                low=0.0, high=WORLD_DIMENSION_M, shape=(NUM_REQUESTS, 4), dtype=np.float32,
             ),
         }
     )
 
     def __init__(self) -> None:
-        super(Warehouse, self).__init__()
+        super(WarehouseContinuous, self).__init__()
 
         self._viewer: gym.Viewer = None
 
@@ -399,7 +379,7 @@ class Warehouse(MultiAgentEnv):
         from gym.envs.classic_control import rendering
 
         if mode != "human":
-            super(Warehouse, self).render(mode=mode)
+            super(WarehouseContinuous, self).render(mode=mode)
 
         if self._viewer is None:
             self._viewer = rendering.Viewer(VIEWPORT_DIMENSION_PX, VIEWPORT_DIMENSION_PX)

@@ -1,10 +1,10 @@
 import time
 
-from warehouse import Warehouse
+from discrete import WarehouseDiscrete
 
 
 if __name__ == "__main__":
-    env = Warehouse()
+    env = WarehouseDiscrete()
     observations = env.reset()
     for _, observation in observations.items():
         assert env.observation_space.contains(observation)
