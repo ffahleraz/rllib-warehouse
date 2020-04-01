@@ -1,9 +1,14 @@
 import time
+from typing import Deque
+from collections import deque
 
 from continuous import WarehouseContinuous
 
 
 if __name__ == "__main__":
+    step_time_buffer: Deque[float] = deque([], maxlen=10)
+    render_time_buffer: Deque[float] = deque([], maxlen=10)
+
     env = WarehouseContinuous()
     observations = env.reset()
     for _, observation in observations.items():
@@ -15,12 +20,14 @@ if __name__ == "__main__":
 
         start_time = time.time()
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
-        step_fps = 1.0 / (time.time() - start_time)
+        step_time_buffer.append(1.0 / (time.time() - start_time))
         env.render()
-        render_fps = 1.0 / (time.time() - start_time)
+        render_time_buffer.append(1.0 / (time.time() - start_time))
 
         for _, observation in observations.items():
             assert env.observation_space.contains(observation)
 
         done = dones["__all__"]
-        print(f"Step FPS: {step_fps}, render FPS: {render_fps}")
+        print(
+            f"Step FPS: {sum(step_time_buffer) / len(step_time_buffer)}, render FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
+        )

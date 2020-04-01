@@ -210,14 +210,19 @@ class WarehouseDiscrete(MultiAgentEnv):
             x = self._agent_positions[idx][0] + MOVES[action["x"]]
             y = self._agent_positions[idx][1] + MOVES[action["y"]]
 
-            if (BORDER_WIDTH_M <= x < WORLD_DIMENSION_M - BORDER_WIDTH_M) and not np.isin(
-                x, self._agent_positions[:, :1]
-            ):
-                self._agent_positions[idx][0] = x
+            if not (BORDER_WIDTH_M <= x < WORLD_DIMENSION_M - BORDER_WIDTH_M):
+                x = self._agent_positions[idx][0]
+            if not (BORDER_WIDTH_M <= y < WORLD_DIMENSION_M - BORDER_WIDTH_M):
+                y = self._agent_positions[idx][1]
 
-            if (BORDER_WIDTH_M <= y < WORLD_DIMENSION_M - BORDER_WIDTH_M) and not np.isin(
-                y, self._agent_positions[:, 1:]
-            ):
+            collide = False
+            for xi, yi in np.delete(self._agent_positions, idx, axis=0):
+                if xi == x and yi == y:
+                    collide = True
+                    break
+
+            if not collide:
+                self._agent_positions[idx][0] = x
                 self._agent_positions[idx][1] = y
 
         # Remove expired pickup points
