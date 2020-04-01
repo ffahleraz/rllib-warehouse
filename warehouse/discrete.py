@@ -62,7 +62,6 @@ AGENT_COLORS: List[Tuple[float, float, float]] = [
     (0.8, 0.8, 0.8),
     (0.0, 0.0, 1.0),
 ]
-BORDER_COLOR: Tuple[float, float, float] = (0.5, 0.5, 0.5)
 PICKUP_POINT_COLORS: List[Tuple[float, float, float]] = [
     (0.8, 0.8, 0.8),
     (0.0, 0.0, 1.0),
@@ -71,6 +70,8 @@ DELIVERY_POINT_COLORS: List[Tuple[float, float, float]] = [
     (0.8, 0.8, 0.8),
     (0.0, 0.0, 1.0),
 ]
+BORDER_COLOR: Tuple[float, float, float] = (0.5, 0.5, 0.5)
+BACKGROUND_COLOR: Tuple[float, float, float] = (1.0, 1.0, 1.0)
 
 
 class WarehouseDiscrete(MultiAgentEnv):
@@ -347,43 +348,28 @@ class WarehouseDiscrete(MultiAgentEnv):
             [
                 (0.0, 0.0),
                 (WORLD_DIMENSION_M * PIXELS_PER_METER, 0.0),
-                (WORLD_DIMENSION_M * PIXELS_PER_METER, BORDER_WIDTH_M * PIXELS_PER_METER),
-                (0.0, BORDER_WIDTH_M * PIXELS_PER_METER),
+                (WORLD_DIMENSION_M * PIXELS_PER_METER, WORLD_DIMENSION_M * PIXELS_PER_METER),
+                (0.0, WORLD_DIMENSION_M * PIXELS_PER_METER),
             ],
             color=BORDER_COLOR,
         )
         self._viewer.draw_polygon(
             [
-                (WORLD_DIMENSION_M * PIXELS_PER_METER, WORLD_DIMENSION_M * PIXELS_PER_METER),
-                (0.0, WORLD_DIMENSION_M * PIXELS_PER_METER),
-                (0.0, (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER),
+                (BORDER_WIDTH_M * PIXELS_PER_METER, BORDER_WIDTH_M * PIXELS_PER_METER),
                 (
-                    WORLD_DIMENSION_M * PIXELS_PER_METER,
+                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
+                    BORDER_WIDTH_M * PIXELS_PER_METER,
+                ),
+                (
+                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
+                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
+                ),
+                (
+                    BORDER_WIDTH_M * PIXELS_PER_METER,
                     (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
                 ),
             ],
-            color=BORDER_COLOR,
-        )
-        self._viewer.draw_polygon(
-            [
-                (0.0, 0.0),
-                (BORDER_WIDTH_M * PIXELS_PER_METER, 0.0),
-                (BORDER_WIDTH_M * PIXELS_PER_METER, WORLD_DIMENSION_M * PIXELS_PER_METER),
-                (0.0, WORLD_DIMENSION_M * PIXELS_PER_METER),
-            ],
-            color=BORDER_COLOR,
-        )
-        self._viewer.draw_polygon(
-            [
-                (WORLD_DIMENSION_M * PIXELS_PER_METER, WORLD_DIMENSION_M * PIXELS_PER_METER),
-                (
-                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
-                    WORLD_DIMENSION_M * PIXELS_PER_METER,
-                ),
-                ((WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER, 0.0),
-                (WORLD_DIMENSION_M * PIXELS_PER_METER, 0.0),
-            ],
-            color=BORDER_COLOR,
+            color=BACKGROUND_COLOR,
         )
 
         # Pickup points
