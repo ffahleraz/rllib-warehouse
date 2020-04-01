@@ -6,12 +6,12 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 
-from warehouse import WarehouseDiscrete
+from warehouse import WarehouseDiscreteSmall
 
 
 def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
     ray.init()
-    register_env("WarehouseDiscrete-v0", lambda _: WarehouseDiscrete())
+    register_env("WarehouseDiscreteSmall-v0", lambda _: WarehouseDiscreteSmall())
 
     tune.run(
         "SAC",
@@ -21,16 +21,16 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
         checkpoint_freq=10,
         checkpoint_at_end=True,
         config={
-            "env": "WarehouseDiscrete-v0",
+            "env": "WarehouseDiscreteSmall-v0",
             "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
             "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
-            "horizon": 400,
+            "horizon": 600,
             "soft_horizon": False,
             "no_done_at_end": True,
             "normalize_actions": False,
-            "timesteps_per_iteration": 400,
-            "learning_starts": 4000,
-            "buffer_size": 40000,
+            "timesteps_per_iteration": 600,
+            "learning_starts": 6000,
+            "buffer_size": 60000,
             "prioritized_replay": False,
             "target_network_update_freq": 1,
             "num_gpus": 1,
