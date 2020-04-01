@@ -4,12 +4,11 @@ from collections import deque
 
 import numpy as np
 
-import warehouse.discrete as discrete
-from warehouse import WarehouseDiscrete
+from warehouse import WarehouseDiscreteSmall
 
 
-NUM_AGENTS: int = discrete.NUM_AGENTS
-NUM_REQUESTS: int = discrete.NUM_REQUESTS
+NUM_AGENTS: int = WarehouseDiscreteSmall.NUM_AGENTS
+NUM_REQUESTS: int = WarehouseDiscreteSmall.NUM_REQUESTS
 ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
 
 
@@ -53,19 +52,26 @@ if __name__ == "__main__":
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env = WarehouseDiscrete()
+    env = WarehouseDiscreteSmall()
     solver = WarehouseDiscreteSolver()
+
     observations = env.reset()
+    for _, observation in observations.items():
+        assert env.observation_space.contains(observation)
 
     acc_rewards = [0.0, 0.0]
     done = False
     while not done:
         action_dict = solver.compute_action(observations)
+
         start_time = time.time()
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
         step_time_buffer.append(1.0 / (time.time() - start_time))
         env.render()
         render_time_buffer.append(1.0 / (time.time() - start_time))
+
+        for _, observation in observations.items():
+            assert env.observation_space.contains(observation)
 
         acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(NUM_AGENTS)]
         done = dones["__all__"]

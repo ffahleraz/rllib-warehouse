@@ -2,14 +2,15 @@ import time
 from typing import Deque
 from collections import deque
 
-from core import WarehouseDiscrete
+from warehouse import WarehouseDiscreteSmall
 
 
 if __name__ == "__main__":
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env = WarehouseDiscrete()
+    env = WarehouseDiscreteSmall()
+
     observations = env.reset()
     for _, observation in observations.items():
         assert env.observation_space.contains(observation)

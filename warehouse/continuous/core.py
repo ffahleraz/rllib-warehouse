@@ -36,25 +36,14 @@ from Box2D.b2 import (
 #         from the existing requests, but may be the same as a pickup point that is already being
 #         served) and a random delivery point (may be the same as existing requests or a delivery
 #         point that is already being served)
-#   - Constant Assumptions:
+#   - Assumptions:
 #       - NUM_REQUESTS >= NUM_AGENTS
-
-# Environment
-# AREA_DIMENSION_M: float = 8.0
-# WORLD_DIMENSION_M: float = AREA_DIMENSION_M + 2 * BORDER_WIDTH_M
-# PICKUP_RACKS_ARRANGEMENT: List[float] = [5.0]
-
-# NUM_AGENTS: int = 2
-# AGENT_INITIAL_POSITIONS: List[Tuple[float, float]] = [
-#     (3.0, 3.0),
-#     (WORLD_DIMENSION_M - 3.0, WORLD_DIMENSION_M - 3.0),
-# ]
-# NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
-# NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
-# NUM_REQUESTS: int = 2
-
-# MAX_EPISODE_TIME: int = 160 * FRAMES_PER_SECOND
-# MAX_PICKUP_WAIT_TIME: float = 40.0 * FRAMES_PER_SECOND
+#   - Params:
+#       - WORLD is the viewport
+#       - All positions are in the frame of WORLD
+#       - WORLD_DIMENSION is the dimension of WORLD in meters
+#       - AREA is the playable area (excluding borders)
+#       - AREA_DIMENSION is the dimension of AREA in meters
 
 # Environment
 PICKUP_REWARD: float = 1.0
@@ -106,21 +95,21 @@ class WarehouseContinuous(MultiAgentEnv):
         super(WarehouseContinuous, self).__init__()
 
         # Constants
-        self._WORLD_DIMENSION: float = world_dimension
-        self._AREA_DIMENSION: float = world_dimension - 2 * border_width
-        self._BORDER_WIDTH: float = border_width
-        self._AGENT_INIT_POSITIONS: List[List[float]] = agent_init_positions
-        self._PICKUP_RACKS_ARRANGEMENT: List[float] = pickup_racks_arrangement
+        self._world_dimension: float = world_dimension
+        self._area_dimension: float = world_dimension - 2 * border_width
+        self._border_width: float = border_width
+        self._agent_init_positions: List[List[float]] = agent_init_positions
+        self._pickup_racks_arrangement: List[float] = pickup_racks_arrangement
 
-        self._NUM_AGENTS: int = num_agents
-        self._NUM_PICKUP_POINTS: int = 4 * len(pickup_racks_arrangement) ** 2
-        self._NUM_DELIVERY_POINTS: int = 4 * int(self._AREA_DIMENSION - 4)
-        self._NUM_REQUESTS: int = num_requests
+        self._num_agents: int = num_agents
+        self._num_pickup_points: int = 4 * len(pickup_racks_arrangement) ** 2
+        self._num_delivery_points: int = 4 * int(self._area_dimension - 4)
+        self._num_requests: int = num_requests
 
-        self._EPISODE_DURATION: int = episode_duration_s * FRAMES_PER_SECOND
-        self._PICKUP_WAIT_DURATION: int = pickup_wait_duration_s * FRAMES_PER_SECOND
+        self._episode_duration: int = episode_duration_s * FRAMES_PER_SECOND
+        self._pickup_wait_duration: int = pickup_wait_duration_s * FRAMES_PER_SECOND
 
-        self._VIEWPORT_DIMENSION_PX: int = int(self._WORLD_DIMENSION) * PIXELS_PER_METER
+        self._viewport_dimension_px: int = int(self._world_dimension) * PIXELS_PER_METER
 
         # Specs
         self.reward_range = (0.0, 1.0)
@@ -128,35 +117,35 @@ class WarehouseContinuous(MultiAgentEnv):
         self.observation_space = gym.spaces.Dict(
             {
                 "self_position": gym.spaces.Box(
-                    low=self._BORDER_WIDTH,
-                    high=self._WORLD_DIMENSION - self._BORDER_WIDTH,
+                    low=self._border_width,
+                    high=self._world_dimension - self._border_width,
                     shape=(2,),
                     dtype=np.float32,
                 ),
                 "self_availability": gym.spaces.MultiBinary(1),
                 "self_delivery_target": gym.spaces.Box(
-                    low=self._BORDER_WIDTH,
-                    high=self._WORLD_DIMENSION - self._BORDER_WIDTH,
+                    low=self._border_width,
+                    high=self._world_dimension - self._border_width,
                     shape=(2,),
                     dtype=np.float32,
                 ),
                 "other_positions": gym.spaces.Box(
-                    low=self._BORDER_WIDTH,
-                    high=self._WORLD_DIMENSION - self._BORDER_WIDTH,
-                    shape=(self._NUM_AGENTS - 1, 2),
+                    low=self._border_width,
+                    high=self._world_dimension - self._border_width,
+                    shape=(self._num_agents - 1, 2),
                     dtype=np.float32,
                 ),
-                "other_availabilities": gym.spaces.MultiBinary(self._NUM_AGENTS - 1),
+                "other_availabilities": gym.spaces.MultiBinary(self._num_agents - 1),
                 "other_delivery_targets": gym.spaces.Box(
-                    low=self._BORDER_WIDTH,
-                    high=self._WORLD_DIMENSION - self._BORDER_WIDTH,
-                    shape=(self._NUM_AGENTS - 1, 2),
+                    low=self._border_width,
+                    high=self._world_dimension - self._border_width,
+                    shape=(self._num_agents - 1, 2),
                     dtype=np.float32,
                 ),
                 "requests": gym.spaces.Box(
-                    low=self._BORDER_WIDTH,
-                    high=self._WORLD_DIMENSION - self._BORDER_WIDTH,
-                    shape=(self._NUM_REQUESTS, 4),
+                    low=self._border_width,
+                    high=self._world_dimension - self._border_width,
+                    shape=(self._num_requests, 4),
                     dtype=np.float32,
                 ),
             }
@@ -169,13 +158,13 @@ class WarehouseContinuous(MultiAgentEnv):
         self._agent_bodies: List[dynamicBody] = []
         self._border_bodies: List[dynamicBody] = []
 
-        self._agent_positions = np.zeros((self._NUM_AGENTS, 2), dtype=np.float32)
-        self._agent_delivery_targets = np.zeros(self._NUM_AGENTS, dtype=np.int32)
+        self._agent_positions = np.zeros((self._num_agents, 2), dtype=np.float32)
+        self._agent_delivery_targets = np.zeros(self._num_agents, dtype=np.int32)
 
-        self._delivery_point_positions = np.zeros((self._NUM_DELIVERY_POINTS, 2), dtype=np.float32)
-        self._pickup_point_positions = np.zeros((self._NUM_PICKUP_POINTS, 2), dtype=np.float32)
-        self._pickup_point_targets = np.zeros(self._NUM_PICKUP_POINTS, dtype=np.int32)
-        self._pickup_point_timers = np.zeros(self._NUM_PICKUP_POINTS, dtype=np.int32)
+        self._delivery_point_positions = np.zeros((self._num_delivery_points, 2), dtype=np.float32)
+        self._pickup_point_positions = np.zeros((self._num_pickup_points, 2), dtype=np.float32)
+        self._pickup_point_targets = np.zeros(self._num_pickup_points, dtype=np.int32)
+        self._pickup_point_timers = np.zeros(self._num_pickup_points, dtype=np.int32)
 
         self._episode_time: int = 0
 
@@ -185,45 +174,45 @@ class WarehouseContinuous(MultiAgentEnv):
         # Init agents
         agent_positions: List[List[float]] = []
         self._agent_bodies = []
-        for x, y in self._AGENT_INIT_POSITIONS:
+        for x, y in self._agent_init_positions:
             body = self._world.CreateDynamicBody(position=(x, y))
             _ = body.CreateCircleFixture(radius=AGENT_RADIUS, density=1.0, friction=0.0)
             self._agent_bodies.append(body)
             agent_positions.append([x, y])
 
         self._agent_positions = np.array(agent_positions, dtype=np.float32)
-        self._agent_delivery_targets = np.full(self._NUM_AGENTS, -1, dtype=np.int32)
+        self._agent_delivery_targets = np.full(self._num_agents, -1, dtype=np.int32)
 
         # Init borders
         self._border_bodies = [
             self._world.CreateStaticBody(
-                position=(self._WORLD_DIMENSION / 2, self._BORDER_WIDTH / 2),
-                shapes=polygonShape(box=(self._WORLD_DIMENSION / 2, self._BORDER_WIDTH / 2)),
+                position=(self._world_dimension / 2, self._border_width / 2),
+                shapes=polygonShape(box=(self._world_dimension / 2, self._border_width / 2)),
             ),
             self._world.CreateStaticBody(
                 position=(
-                    self._WORLD_DIMENSION / 2,
-                    self._WORLD_DIMENSION - self._BORDER_WIDTH / 2,
+                    self._world_dimension / 2,
+                    self._world_dimension - self._border_width / 2,
                 ),
-                shapes=polygonShape(box=(self._WORLD_DIMENSION / 2, self._BORDER_WIDTH / 2)),
+                shapes=polygonShape(box=(self._world_dimension / 2, self._border_width / 2)),
             ),
             self._world.CreateStaticBody(
-                position=(self._BORDER_WIDTH / 2, self._WORLD_DIMENSION / 2,),
-                shapes=polygonShape(box=(self._BORDER_WIDTH / 2, self._WORLD_DIMENSION / 2)),
+                position=(self._border_width / 2, self._world_dimension / 2,),
+                shapes=polygonShape(box=(self._border_width / 2, self._world_dimension / 2)),
             ),
             self._world.CreateStaticBody(
                 position=(
-                    self._WORLD_DIMENSION - self._BORDER_WIDTH / 2,
-                    self._WORLD_DIMENSION / 2,
+                    self._world_dimension - self._border_width / 2,
+                    self._world_dimension / 2,
                 ),
-                shapes=polygonShape(box=(self._BORDER_WIDTH / 2, self._WORLD_DIMENSION / 2)),
+                shapes=polygonShape(box=(self._border_width / 2, self._world_dimension / 2)),
             ),
         ]
 
         # Init pickup point positions
         pickup_point_positions = []
-        for x in self._PICKUP_RACKS_ARRANGEMENT:
-            for y in self._PICKUP_RACKS_ARRANGEMENT:
+        for x in self._pickup_racks_arrangement:
+            for y in self._pickup_racks_arrangement:
                 pickup_point_positions.extend(
                     [
                         [x - 0.5, y - 0.5],
@@ -236,39 +225,39 @@ class WarehouseContinuous(MultiAgentEnv):
 
         # Init delivery point positions
         delivery_point_positions = []
-        for val in range(2, int(self._AREA_DIMENSION) - 2):
+        for val in range(2, int(self._area_dimension) - 2):
             delivery_point_positions.extend(
                 [
-                    [self._BORDER_WIDTH + val + 0.5, self._BORDER_WIDTH + 0.5],
+                    [self._border_width + val + 0.5, self._border_width + 0.5],
                     [
-                        self._BORDER_WIDTH + val + 0.5,
-                        self._WORLD_DIMENSION - self._BORDER_WIDTH - 0.5,
+                        self._border_width + val + 0.5,
+                        self._world_dimension - self._border_width - 0.5,
                     ],
-                    [self._BORDER_WIDTH + 0.5, self._BORDER_WIDTH + val + 0.5],
+                    [self._border_width + 0.5, self._border_width + val + 0.5],
                     [
-                        self._WORLD_DIMENSION - self._BORDER_WIDTH - 0.5,
-                        self._BORDER_WIDTH + val + 0.5,
+                        self._world_dimension - self._border_width - 0.5,
+                        self._border_width + val + 0.5,
                     ],
                 ]
             )
         self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.float32)
 
         # Init waiting request states
-        self._pickup_point_targets = np.full(self._NUM_PICKUP_POINTS, -1, dtype=np.int32)
-        self._pickup_point_timers = np.full(self._NUM_PICKUP_POINTS, -1, dtype=np.int32)
+        self._pickup_point_targets = np.full(self._num_pickup_points, -1, dtype=np.int32)
+        self._pickup_point_timers = np.full(self._num_pickup_points, -1, dtype=np.int32)
 
         new_waiting_pickup_points = np.random.choice(
-            self._NUM_PICKUP_POINTS, self._NUM_REQUESTS, replace=False,
+            self._num_pickup_points, self._num_requests, replace=False,
         )
         self._pickup_point_targets[new_waiting_pickup_points] = np.random.choice(
-            self._NUM_DELIVERY_POINTS, self._NUM_REQUESTS, replace=False,
+            self._num_delivery_points, self._num_requests, replace=False,
         )
-        self._pickup_point_timers[new_waiting_pickup_points] = self._PICKUP_WAIT_DURATION
+        self._pickup_point_timers[new_waiting_pickup_points] = self._pickup_wait_duration
 
         # Compute observations
-        agent_availabilities = np.ones(self._NUM_AGENTS, dtype=np.int8)
+        agent_availabilities = np.ones(self._num_agents, dtype=np.int8)
         agent_delivery_target_positions = np.full(
-            (self._NUM_AGENTS, 2), self._WORLD_DIMENSION / 2.0, dtype=np.float32
+            (self._num_agents, 2), self._world_dimension / 2.0, dtype=np.float32
         )
 
         waiting_pickup_points_mask = self._pickup_point_targets > -1
@@ -292,7 +281,7 @@ class WarehouseContinuous(MultiAgentEnv):
                 "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0),
                 "requests": requests,
             }
-            for i in range(self._NUM_AGENTS)
+            for i in range(self._num_agents)
         }
 
     def step(
@@ -322,8 +311,8 @@ class WarehouseContinuous(MultiAgentEnv):
 
         # Detect pickups
         agent_and_pickup_point_distances = np.linalg.norm(
-            np.repeat(self._pickup_point_positions[np.newaxis, :, :], self._NUM_AGENTS, axis=0)
-            - np.repeat(self._agent_positions[:, np.newaxis, :], self._NUM_PICKUP_POINTS, axis=1),
+            np.repeat(self._pickup_point_positions[np.newaxis, :, :], self._num_agents, axis=0)
+            - np.repeat(self._agent_positions[:, np.newaxis, :], self._num_pickup_points, axis=1),
             axis=2,
         )
         agent_and_pickup_point_collisions = (
@@ -344,21 +333,21 @@ class WarehouseContinuous(MultiAgentEnv):
         self._pickup_point_timers[new_served_pickup_points] = -1
 
         # Calculate pickup rewards
-        agent_rewards = np.zeros(self._NUM_AGENTS, dtype=np.float32)
+        agent_rewards = np.zeros(self._num_agents, dtype=np.float32)
         agent_rewards[new_delivering_agents_mask] += PICKUP_REWARD
 
         # Regenerate waiting pickup points
         inactive_pickup_points = np.where(self._pickup_point_targets == -1)[0]
         new_waiting_pickup_points = np.random.choice(
             inactive_pickup_points,
-            self._NUM_REQUESTS - self._NUM_PICKUP_POINTS + inactive_pickup_points.shape[0],
+            self._num_requests - self._num_pickup_points + inactive_pickup_points.shape[0],
             replace=False,
         )
-        self._pickup_point_timers[new_waiting_pickup_points] = self._PICKUP_WAIT_DURATION
+        self._pickup_point_timers[new_waiting_pickup_points] = self._pickup_wait_duration
 
         new_pickup_point_targets = np.random.choice(
-            self._NUM_DELIVERY_POINTS,
-            self._NUM_REQUESTS - self._NUM_PICKUP_POINTS + inactive_pickup_points.shape[0],
+            self._num_delivery_points,
+            self._num_requests - self._num_pickup_points + inactive_pickup_points.shape[0],
             replace=False,
         )
         self._pickup_point_targets[new_waiting_pickup_points] = new_pickup_point_targets
@@ -382,11 +371,11 @@ class WarehouseContinuous(MultiAgentEnv):
 
         # Compute observations
         delivering_agents_mask = self._agent_delivery_targets > -1
-        agent_availabilities = np.ones(self._NUM_AGENTS, dtype=np.int8)
+        agent_availabilities = np.ones(self._num_agents, dtype=np.int8)
         agent_availabilities[delivering_agents_mask] = 0
 
         agent_delivery_target_positions = np.full(
-            (self._NUM_AGENTS, 2), self._WORLD_DIMENSION / 2.0, dtype=np.float32
+            (self._num_agents, 2), self._world_dimension / 2.0, dtype=np.float32
         )
         agent_delivery_target_positions[delivering_agents_mask] = self._delivery_point_positions[
             self._agent_delivery_targets[delivering_agents_mask]
@@ -413,18 +402,18 @@ class WarehouseContinuous(MultiAgentEnv):
                 "other_delivery_targets": np.delete(agent_delivery_target_positions, 1, axis=0),
                 "requests": requests,
             }
-            for i in range(self._NUM_AGENTS)
+            for i in range(self._num_agents)
         }
 
         # Compute rewards
-        rewards = {f"{i}": agent_rewards[i] for i in range(self._NUM_AGENTS)}
+        rewards = {f"{i}": agent_rewards[i] for i in range(self._num_agents)}
 
         # Compute dones
-        episode_done = self._episode_time >= self._EPISODE_DURATION
-        dones = {f"{i}": episode_done for i in range(self._NUM_AGENTS)}
+        episode_done = self._episode_time >= self._episode_duration
+        dones = {f"{i}": episode_done for i in range(self._num_agents)}
         dones["__all__"] = episode_done
 
-        return observations, rewards, dones, {f"{i}": {} for i in range(self._NUM_AGENTS)}
+        return observations, rewards, dones, {f"{i}": {} for i in range(self._num_agents)}
 
     def render(self, mode: str = "human") -> None:
         from gym.envs.classic_control import rendering
@@ -434,7 +423,7 @@ class WarehouseContinuous(MultiAgentEnv):
 
         if self._viewer is None:
             self._viewer = rendering.Viewer(
-                self._VIEWPORT_DIMENSION_PX, self._VIEWPORT_DIMENSION_PX
+                self._viewport_dimension_px, self._viewport_dimension_px
             )
 
         for body in self._border_bodies:

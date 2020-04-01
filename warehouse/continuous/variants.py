@@ -5,23 +5,20 @@ __all__ = ["WarehouseContinuousSmall"]
 
 
 class WarehouseContinuousSmall(WarehouseContinuous):
-    NUM_AGENTS: int = 2
-    NUM_REQUESTS: int = 2
-    WORLD_DIMENSION: float = 10.0
-    BORDER_WIDTH: float = 1.0
-
     def __init__(self) -> None:
+        self.num_agents: int = 2
+        self.num_requests: int = 2
+        self.world_dimension: float = 10.0
+        self.border_width: float = 1.0
+
         super(WarehouseContinuousSmall, self).__init__(
-            num_agents=WarehouseContinuousSmall.NUM_AGENTS,
-            num_requests=WarehouseContinuousSmall.NUM_REQUESTS,
-            world_dimension=WarehouseContinuousSmall.WORLD_DIMENSION,
-            border_width=WarehouseContinuousSmall.BORDER_WIDTH,
+            num_agents=self.num_agents,
+            num_requests=self.num_requests,
+            world_dimension=self.world_dimension,
+            border_width=self.border_width,
             agent_init_positions=[
                 [3.0, 3.0],
-                [
-                    WarehouseContinuousSmall.WORLD_DIMENSION - 3.0,
-                    WarehouseContinuousSmall.WORLD_DIMENSION - 3.0,
-                ],
+                [self.world_dimension - 3.0, self.world_dimension - 3.0,],
             ],
             pickup_racks_arrangement=[5.0],
             episode_duration_s=160,

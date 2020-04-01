@@ -1,6 +1,6 @@
-from . import core
-from .core import *
+from . import variants
+from .variants import *
 
-__all__ = core.__all__
+__all__ = variants.__all__
 
 name = "warehouse"

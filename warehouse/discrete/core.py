@@ -26,36 +26,20 @@ __all__ = ["WarehouseDiscrete"]
 #       - NUM_REQUESTS >= NUM_AGENTS
 
 # Environment
-AREA_DIMENSION_M: int = 8
-BORDER_WIDTH_M: int = 1
-WORLD_DIMENSION_M: int = AREA_DIMENSION_M + 2 * BORDER_WIDTH_M
-PICKUP_RACKS_ARRANGEMENT: List[int] = [5]
-
-NUM_AGENTS: int = 2
-AGENT_INITIAL_POSITIONS: List[Tuple[int, int]] = [
-    (2, 2),
-    (WORLD_DIMENSION_M - 3, WORLD_DIMENSION_M - 3),
-]
-NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
-NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
-NUM_REQUESTS: int = 2
-
 MOVES: List[List[float]] = [[x, y] for x in [-1, 0, 1] for y in [-1, 0, 1]]
 
 PICKUP_REWARD: float = 1.0
 DELIVERY_REWARD: float = 1.0
-
-MAX_EPISODE_TIME: int = 400
-MAX_PICKUP_WAIT_TIME: int = 40
 
 EPSILON = 1e-3
 
 # Rendering
 B2_VEL_ITERS: int = 10
 B2_POS_ITERS: int = 10
+
+AGENT_RADIUS: float = 0.4
+BORDER_WIDTH: float = 1.0
 PIXELS_PER_METER: int = 30
-VIEWPORT_DIMENSION_PX: int = int(WORLD_DIMENSION_M) * PIXELS_PER_METER
-AGENT_RADIUS_M = 0.4
 
 AGENT_COLORS: List[Tuple[float, float, float]] = [
     (0.5, 0.5, 0.5),
@@ -78,49 +62,77 @@ class WarehouseDiscrete(MultiAgentEnv):
     metadata = {
         "render.modes": ["human"],
     }
-    reward_range = (0.0, 1.0)
 
-    action_space = gym.spaces.Discrete(len(MOVES))
-    observation_space = gym.spaces.Dict(
-        {
-            "self_position": gym.spaces.Box(
-                low=BORDER_WIDTH_M,
-                high=WORLD_DIMENSION_M - BORDER_WIDTH_M,
-                shape=(2,),
-                dtype=np.int32,
-            ),
-            "self_availability": gym.spaces.MultiBinary(1),
-            "self_delivery_target": gym.spaces.Box(
-                low=0, high=WORLD_DIMENSION_M, shape=(2,), dtype=np.int32,
-            ),
-            "other_positions": gym.spaces.Box(
-                low=BORDER_WIDTH_M,
-                high=WORLD_DIMENSION_M - BORDER_WIDTH_M,
-                shape=(NUM_AGENTS - 1, 2),
-                dtype=np.int32,
-            ),
-            "other_availabilities": gym.spaces.MultiBinary(NUM_AGENTS - 1),
-            "other_delivery_targets": gym.spaces.Box(
-                low=0, high=WORLD_DIMENSION_M, shape=(NUM_AGENTS - 1, 2), dtype=np.int32,
-            ),
-            "requests": gym.spaces.Box(
-                low=0, high=WORLD_DIMENSION_M, shape=(NUM_REQUESTS, 4), dtype=np.int32,
-            ),
-        }
-    )
-
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        num_agents: int,
+        num_requests: int,
+        area_dimension: float,
+        agent_init_positions: List[List[float]],
+        pickup_racks_arrangement: List[float],
+        episode_duration: int,
+        pickup_wait_duration: int,
+    ) -> None:
         super(WarehouseDiscrete, self).__init__()
 
+        # Constants
+        self._AREA_DIMENSION: float = area_dimension
+        self._AGENT_INIT_POSITIONS: List[List[float]] = agent_init_positions
+        self._PICKUP_RACKS_ARRANGEMENT: List[float] = pickup_racks_arrangement
+
+        self._NUM_AGENTS: int = num_agents
+        self._NUM_PICKUP_POINTS: int = 4 * len(pickup_racks_arrangement) ** 2
+        self._NUM_DELIVERY_POINTS: int = 4 * int(self._AREA_DIMENSION - 4)
+        self._NUM_REQUESTS: int = num_requests
+
+        self._EPISODE_DURATION: int = episode_duration
+        self._PICKUP_WAIT_DURATION: int = pickup_wait_duration
+
+        self._VIEWPORT_DIMENSION_PX: int = int(
+            self._AREA_DIMENSION + 2 * BORDER_WIDTH
+        ) * PIXELS_PER_METER
+
+        # Specs
+        self.reward_range = (0.0, 1.0)
+        self.action_space = gym.spaces.Discrete(len(MOVES))
+        self.observation_space = gym.spaces.Dict(
+            {
+                "self_position": gym.spaces.Box(
+                    low=0, high=self._AREA_DIMENSION, shape=(2,), dtype=np.int32,
+                ),
+                "self_availability": gym.spaces.MultiBinary(1),
+                "self_delivery_target": gym.spaces.Box(
+                    low=0, high=self._AREA_DIMENSION, shape=(2,), dtype=np.int32,
+                ),
+                "other_positions": gym.spaces.Box(
+                    low=0,
+                    high=self._AREA_DIMENSION,
+                    shape=(self._NUM_AGENTS - 1, 2),
+                    dtype=np.int32,
+                ),
+                "other_availabilities": gym.spaces.MultiBinary(self._NUM_AGENTS - 1),
+                "other_delivery_targets": gym.spaces.Box(
+                    low=0,
+                    high=self._AREA_DIMENSION,
+                    shape=(self._NUM_AGENTS - 1, 2),
+                    dtype=np.int32,
+                ),
+                "requests": gym.spaces.Box(
+                    low=0, high=self._AREA_DIMENSION, shape=(self._NUM_REQUESTS, 4), dtype=np.int32,
+                ),
+            }
+        )
+
+        # States
         self._viewer: gym.Viewer = None
 
-        self._agent_positions = np.zeros((NUM_AGENTS, 2), dtype=np.int32)
-        self._agent_delivery_targets = np.zeros(NUM_AGENTS, dtype=np.int32)
+        self._agent_positions = np.zeros((self._NUM_AGENTS, 2), dtype=np.int32)
+        self._agent_delivery_targets = np.zeros(self._NUM_AGENTS, dtype=np.int32)
 
-        self._delivery_point_positions = np.zeros((NUM_DELIVERY_POINTS, 2), dtype=np.int32)
-        self._pickup_point_positions = np.zeros((NUM_PICKUP_POINTS, 2), dtype=np.int32)
-        self._pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
-        self._pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32)
+        self._delivery_point_positions = np.zeros((self._NUM_DELIVERY_POINTS, 2), dtype=np.int32)
+        self._pickup_point_positions = np.zeros((self._NUM_PICKUP_POINTS, 2), dtype=np.int32)
+        self._pickup_point_targets = np.zeros(self._NUM_PICKUP_POINTS, dtype=np.int32)
+        self._pickup_point_timers = np.zeros(self._NUM_PICKUP_POINTS, dtype=np.int32)
 
         self._episode_time: int = 0
 
@@ -129,15 +141,15 @@ class WarehouseDiscrete(MultiAgentEnv):
 
         # Init agents
         agent_positions: List[List[float]] = []
-        for x, y in AGENT_INITIAL_POSITIONS:
+        for x, y in self._AGENT_INIT_POSITIONS:
             agent_positions.append([x, y])
         self._agent_positions = np.array(agent_positions, dtype=np.int32)
-        self._agent_delivery_targets = np.full(NUM_AGENTS, -1, dtype=np.int32)
+        self._agent_delivery_targets = np.full(self._NUM_AGENTS, -1, dtype=np.int32)
 
         # Init pickup point positions
         pickup_point_positions = []
-        for x in PICKUP_RACKS_ARRANGEMENT:
-            for y in PICKUP_RACKS_ARRANGEMENT:
+        for x in self._PICKUP_RACKS_ARRANGEMENT:
+            for y in self._PICKUP_RACKS_ARRANGEMENT:
                 pickup_point_positions.extend(
                     [[x - 1, y - 1], [x, y - 1], [x - 1, y], [x, y],]
                 )
@@ -145,32 +157,34 @@ class WarehouseDiscrete(MultiAgentEnv):
 
         # Init delivery point positions
         delivery_point_positions = []
-        for val in range(2, int(AREA_DIMENSION_M) - 2):
+        for val in range(2, int(self._AREA_DIMENSION) - 2):
             delivery_point_positions.extend(
                 [
-                    [BORDER_WIDTH_M + val, BORDER_WIDTH_M],
-                    [BORDER_WIDTH_M + val, WORLD_DIMENSION_M - BORDER_WIDTH_M - 1,],
-                    [BORDER_WIDTH_M, BORDER_WIDTH_M + val],
-                    [WORLD_DIMENSION_M - BORDER_WIDTH_M - 1, BORDER_WIDTH_M + val,],
+                    [val, 0],
+                    [0, val],
+                    [val, self._AREA_DIMENSION - 1],
+                    [self._AREA_DIMENSION - 1, val],
                 ]
             )
         self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.int32)
 
         # Init waiting request states
-        self._pickup_point_targets = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
-        self._pickup_point_timers = np.full(NUM_PICKUP_POINTS, -1, dtype=np.int32)
+        self._pickup_point_targets = np.full(self._NUM_PICKUP_POINTS, -1, dtype=np.int32)
+        self._pickup_point_timers = np.full(self._NUM_PICKUP_POINTS, -1, dtype=np.int32)
 
         new_waiting_pickup_points = np.random.choice(
-            NUM_PICKUP_POINTS, NUM_REQUESTS, replace=False,
+            self._NUM_PICKUP_POINTS, self._NUM_REQUESTS, replace=False,
         )
         self._pickup_point_targets[new_waiting_pickup_points] = np.random.choice(
-            NUM_DELIVERY_POINTS, NUM_REQUESTS, replace=False,
+            self._NUM_DELIVERY_POINTS, self._NUM_REQUESTS, replace=False,
         )
-        self._pickup_point_timers[new_waiting_pickup_points] = MAX_PICKUP_WAIT_TIME
+        self._pickup_point_timers[new_waiting_pickup_points] = self._PICKUP_WAIT_DURATION
 
         # Compute observations
-        agent_availabilities = np.ones(NUM_AGENTS, dtype=np.int32)
-        agent_delivery_target_positions = np.zeros((NUM_AGENTS, 2), dtype=np.int32)
+        agent_availabilities = np.ones(self._NUM_AGENTS, dtype=np.int32)
+        agent_delivery_target_positions = np.full(
+            (self._NUM_AGENTS, 2), self._AREA_DIMENSION // 2, dtype=np.int32
+        )
 
         waiting_pickup_points_mask = self._pickup_point_targets > -1
         requests = self._pickup_point_positions[waiting_pickup_points_mask]
@@ -193,7 +207,7 @@ class WarehouseDiscrete(MultiAgentEnv):
                 "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0),
                 "requests": requests,
             }
-            for i in range(NUM_AGENTS)
+            for i in range(self._NUM_AGENTS)
         }
 
     def step(
@@ -209,9 +223,9 @@ class WarehouseDiscrete(MultiAgentEnv):
             x = self._agent_positions[idx][0] + MOVES[action][0]
             y = self._agent_positions[idx][1] + MOVES[action][1]
 
-            if not (BORDER_WIDTH_M <= x < WORLD_DIMENSION_M - BORDER_WIDTH_M):
+            if not (0 <= x < self._AREA_DIMENSION):
                 x = self._agent_positions[idx][0]
-            if not (BORDER_WIDTH_M <= y < WORLD_DIMENSION_M - BORDER_WIDTH_M):
+            if not (0 <= y < self._AREA_DIMENSION):
                 y = self._agent_positions[idx][1]
 
             collide = False
@@ -233,8 +247,10 @@ class WarehouseDiscrete(MultiAgentEnv):
         # Detect pickups
         agent_and_pickup_point_distances = np.linalg.norm(
             (
-                np.repeat(self._pickup_point_positions[np.newaxis, :, :], NUM_AGENTS, axis=0)
-                - np.repeat(self._agent_positions[:, np.newaxis, :], NUM_PICKUP_POINTS, axis=1)
+                np.repeat(self._pickup_point_positions[np.newaxis, :, :], self._NUM_AGENTS, axis=0)
+                - np.repeat(
+                    self._agent_positions[:, np.newaxis, :], self._NUM_PICKUP_POINTS, axis=1
+                )
             ).astype(np.float32),
             axis=2,
         )
@@ -254,21 +270,21 @@ class WarehouseDiscrete(MultiAgentEnv):
         self._pickup_point_timers[new_served_pickup_points] = -1
 
         # Calculate pickup rewards
-        agent_rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+        agent_rewards = np.zeros(self._NUM_AGENTS, dtype=np.float32)
         agent_rewards[new_delivering_agents_mask] += PICKUP_REWARD
 
         # Regenerate waiting pickup points
         inactive_pickup_points = np.where(self._pickup_point_targets == -1)[0]
         new_waiting_pickup_points = np.random.choice(
             inactive_pickup_points,
-            NUM_REQUESTS - NUM_PICKUP_POINTS + inactive_pickup_points.shape[0],
+            self._NUM_REQUESTS - self._NUM_PICKUP_POINTS + inactive_pickup_points.shape[0],
             replace=False,
         )
-        self._pickup_point_timers[new_waiting_pickup_points] = MAX_PICKUP_WAIT_TIME
+        self._pickup_point_timers[new_waiting_pickup_points] = self._PICKUP_WAIT_DURATION
 
         new_pickup_point_targets = np.random.choice(
-            NUM_DELIVERY_POINTS,
-            NUM_REQUESTS - NUM_PICKUP_POINTS + inactive_pickup_points.shape[0],
+            self._NUM_DELIVERY_POINTS,
+            self._NUM_REQUESTS - self._NUM_PICKUP_POINTS + inactive_pickup_points.shape[0],
             replace=False,
         )
         self._pickup_point_targets[new_waiting_pickup_points] = new_pickup_point_targets
@@ -292,10 +308,12 @@ class WarehouseDiscrete(MultiAgentEnv):
 
         # Compute observations
         delivering_agents_mask = self._agent_delivery_targets > -1
-        agent_availabilities = np.ones(NUM_AGENTS, dtype=np.int32)
+        agent_availabilities = np.ones(self._NUM_AGENTS, dtype=np.int32)
         agent_availabilities[delivering_agents_mask] = 0
 
-        agent_delivery_target_positions = np.zeros((NUM_AGENTS, 2), dtype=np.int32)
+        agent_delivery_target_positions = np.full(
+            (self._NUM_AGENTS, 2), self._AREA_DIMENSION // 2, dtype=np.int32
+        )
         agent_delivery_target_positions[delivering_agents_mask] = self._delivery_point_positions[
             self._agent_delivery_targets[delivering_agents_mask]
         ]
@@ -321,18 +339,18 @@ class WarehouseDiscrete(MultiAgentEnv):
                 "other_delivery_targets": np.delete(agent_delivery_target_positions, 1, axis=0),
                 "requests": requests,
             }
-            for i in range(NUM_AGENTS)
+            for i in range(self._NUM_AGENTS)
         }
 
         # Compute rewards
-        rewards = {f"{i}": agent_rewards[i] for i in range(NUM_AGENTS)}
+        rewards = {f"{i}": agent_rewards[i] for i in range(self._NUM_AGENTS)}
 
         # Compute dones
-        episode_done = self._episode_time >= MAX_EPISODE_TIME
-        dones = {f"{i}": episode_done for i in range(NUM_AGENTS)}
+        episode_done = self._episode_time >= self._EPISODE_DURATION
+        dones = {f"{i}": episode_done for i in range(self._NUM_AGENTS)}
         dones["__all__"] = episode_done
 
-        return observations, rewards, dones, {f"{i}": {} for i in range(NUM_AGENTS)}
+        return observations, rewards, dones, {f"{i}": {} for i in range(self._NUM_AGENTS)}
 
     def render(self, mode: str = "human") -> None:
         from gym.envs.classic_control import rendering
@@ -341,32 +359,37 @@ class WarehouseDiscrete(MultiAgentEnv):
             super(WarehouseDiscrete, self).render(mode=mode)
 
         if self._viewer is None:
-            self._viewer = rendering.Viewer(VIEWPORT_DIMENSION_PX, VIEWPORT_DIMENSION_PX)
+            self._viewer = rendering.Viewer(
+                self._VIEWPORT_DIMENSION_PX, self._VIEWPORT_DIMENSION_PX
+            )
 
         # Border
         self._viewer.draw_polygon(
             [
                 (0.0, 0.0),
-                (WORLD_DIMENSION_M * PIXELS_PER_METER, 0.0),
-                (WORLD_DIMENSION_M * PIXELS_PER_METER, WORLD_DIMENSION_M * PIXELS_PER_METER),
-                (0.0, WORLD_DIMENSION_M * PIXELS_PER_METER),
+                ((self._AREA_DIMENSION + 2 * BORDER_WIDTH) * PIXELS_PER_METER, 0.0),
+                (
+                    (self._AREA_DIMENSION + 2 * BORDER_WIDTH) * PIXELS_PER_METER,
+                    (self._AREA_DIMENSION + 2 * BORDER_WIDTH) * PIXELS_PER_METER,
+                ),
+                (0.0, (self._AREA_DIMENSION + 2 * BORDER_WIDTH) * PIXELS_PER_METER),
             ],
             color=BORDER_COLOR,
         )
         self._viewer.draw_polygon(
             [
-                (BORDER_WIDTH_M * PIXELS_PER_METER, BORDER_WIDTH_M * PIXELS_PER_METER),
+                (BORDER_WIDTH * PIXELS_PER_METER, BORDER_WIDTH * PIXELS_PER_METER),
                 (
-                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
-                    BORDER_WIDTH_M * PIXELS_PER_METER,
+                    (self._AREA_DIMENSION + BORDER_WIDTH) * PIXELS_PER_METER,
+                    BORDER_WIDTH * PIXELS_PER_METER,
                 ),
                 (
-                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
-                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
+                    (self._AREA_DIMENSION + BORDER_WIDTH) * PIXELS_PER_METER,
+                    (self._AREA_DIMENSION + BORDER_WIDTH) * PIXELS_PER_METER,
                 ),
                 (
-                    BORDER_WIDTH_M * PIXELS_PER_METER,
-                    (WORLD_DIMENSION_M - BORDER_WIDTH_M) * PIXELS_PER_METER,
+                    BORDER_WIDTH * PIXELS_PER_METER,
+                    (self._AREA_DIMENSION + BORDER_WIDTH) * PIXELS_PER_METER,
                 ),
             ],
             color=BACKGROUND_COLOR,
@@ -381,10 +404,22 @@ class WarehouseDiscrete(MultiAgentEnv):
             )
             self._viewer.draw_polygon(
                 [
-                    ((point[0] + 0.1) * PIXELS_PER_METER, (point[1] + 0.1) * PIXELS_PER_METER,),
-                    ((point[0] + 0.9) * PIXELS_PER_METER, (point[1] + 0.1) * PIXELS_PER_METER,),
-                    ((point[0] + 0.9) * PIXELS_PER_METER, (point[1] + 0.9) * PIXELS_PER_METER,),
-                    ((point[0] + 0.1) * PIXELS_PER_METER, (point[1] + 0.9) * PIXELS_PER_METER,),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
                 ],
                 color=color,
             )
@@ -398,35 +433,61 @@ class WarehouseDiscrete(MultiAgentEnv):
             )
             self._viewer.draw_polygon(
                 [
-                    ((point[0] + 0.1) * PIXELS_PER_METER, (point[1] + 0.1) * PIXELS_PER_METER,),
-                    ((point[0] + 0.9) * PIXELS_PER_METER, (point[1] + 0.1) * PIXELS_PER_METER,),
-                    ((point[0] + 0.9) * PIXELS_PER_METER, (point[1] + 0.9) * PIXELS_PER_METER,),
-                    ((point[0] + 0.1) * PIXELS_PER_METER, (point[1] + 0.9) * PIXELS_PER_METER,),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
                 ],
                 color=color,
             )
             self._viewer.draw_polygon(
                 [
-                    ((point[0] + 0.2) * PIXELS_PER_METER, (point[1] + 0.2) * PIXELS_PER_METER,),
-                    ((point[0] + 0.8) * PIXELS_PER_METER, (point[1] + 0.2) * PIXELS_PER_METER,),
-                    ((point[0] + 0.8) * PIXELS_PER_METER, (point[1] + 0.8) * PIXELS_PER_METER,),
-                    ((point[0] + 0.2) * PIXELS_PER_METER, (point[1] + 0.8) * PIXELS_PER_METER,),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                    ),
                 ],
                 color=DELIVERY_POINT_COLORS[0],
             )
 
         # Agents
         for idx, point in enumerate(self._agent_positions):
-            transform = point.astype(np.float32) + np.array([0.5, 0.5], dtype=np.float32)
+            transform = (
+                point.astype(np.float32) + np.array([0.5, 0.5], dtype=np.float32) + BORDER_WIDTH
+            )
             self._viewer.draw_circle(
-                AGENT_RADIUS_M * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
+                AGENT_RADIUS * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
             ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
             self._viewer.draw_circle(
-                AGENT_RADIUS_M * 3 / 4 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
+                AGENT_RADIUS * 3 / 4 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
             ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
             if self._agent_delivery_targets[idx] > -1:
                 self._viewer.draw_circle(
-                    AGENT_RADIUS_M / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[2]
+                    AGENT_RADIUS / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[2]
                 ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
 
         self._viewer.render()

@@ -30,5 +30,5 @@ if __name__ == "__main__":
 
         done = dones["__all__"]
         print(
-            f"Step FPS: {sum(step_time_buffer) / len(step_time_buffer)}, render FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
+            f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
         )
