@@ -1,34 +1,35 @@
 import time
+import argparse
 from typing import Dict, Deque, List
 from collections import deque
 
 import numpy as np
 
-from warehouse import WarehouseDiscreteSmall
+from warehouse import WarehouseDiscreteSmall, WarehouseDiscreteMedium, WarehouseDiscreteLarge
 
 
-NUM_AGENTS: int = WarehouseDiscreteSmall.NUM_AGENTS
-NUM_REQUESTS: int = WarehouseDiscreteSmall.NUM_REQUESTS
 ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
 
 
 class WarehouseDiscreteSolver:
-    def __init__(self) -> None:
-        self._agent_pickup_targets = [-1] * NUM_AGENTS
+    def __init__(self, num_agents: int, num_requests: int) -> None:
+        self._num_agents = num_agents
+        self._num_requests = num_requests
+        self._agent_pickup_targets = [-1] * num_agents
 
     def compute_action(
         self, observations: Dict[str, Dict[str, np.ndarray]]
     ) -> Dict[str, np.ndarray]:
         action_dict = {}
 
-        for i in range(NUM_AGENTS):
+        for i in range(self._num_agents):
             agent_id = f"{i}"
             if observations[agent_id]["self_availability"][0] == 0:
                 self._agent_pickup_targets[i] = -1
                 target = observations[agent_id]["self_delivery_target"]
             else:
                 if self._agent_pickup_targets[i] == -1:
-                    for j in range(NUM_REQUESTS):
+                    for j in range(self._num_requests):
                         if j not in self._agent_pickup_targets:
                             self._agent_pickup_targets[i] = j
                             break
@@ -48,19 +49,26 @@ class WarehouseDiscreteSolver:
         return action_dict
 
 
-if __name__ == "__main__":
+def main(env_variant: str) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env = WarehouseDiscreteSmall()
-    solver = WarehouseDiscreteSolver()
+    if env_variant == "small":
+        env = WarehouseDiscreteSmall()
+    elif env_variant == "medium":
+        env = WarehouseDiscreteMedium()
+    else:
+        env = WarehouseDiscreteLarge()
+
+    solver = WarehouseDiscreteSolver(num_agents=env.num_agents, num_requests=env.num_requests)
 
     observations = env.reset()
     for _, observation in observations.items():
         assert env.observation_space.contains(observation)
 
-    acc_rewards = [0.0, 0.0]
+    acc_rewards = [0.0 for i in range(env.num_agents)]
     done = False
+    step_count = 0
     while not done:
         action_dict = solver.compute_action(observations)
 
@@ -73,11 +81,22 @@ if __name__ == "__main__":
         for _, observation in observations.items():
             assert env.observation_space.contains(observation)
 
-        acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(NUM_AGENTS)]
+        acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(env.num_agents)]
         done = dones["__all__"]
 
-        print("\n=== Status ===")
+        print(f"\n=== Step {step_count} ===")
         print("Rewards:", *acc_rewards)
         print(
-            f"Step FPS: {sum(step_time_buffer) / len(step_time_buffer)}, render FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
+            f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
         )
+
+        step_count += 1
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "env_variant", type=str, choices=["small", "medium", "large"], help="environment variant"
+    )
+    args = parser.parse_args()
+    main(env_variant=args.env_variant)

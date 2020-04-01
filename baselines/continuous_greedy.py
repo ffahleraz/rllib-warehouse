@@ -49,7 +49,7 @@ if __name__ == "__main__":
     for _, observation in observations.items():
         assert env.observation_space.contains(observation)
 
-    acc_rewards = [0.0, 0.0]
+    acc_rewards = [0.0 for i in range(env.num_agents)]
     done = False
     step_count = 0
     while not done:
