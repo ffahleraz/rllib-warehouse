@@ -35,18 +35,15 @@ class WarehouseDiscreteSolver:
                             break
                 target = observations[agent_id]["requests"][self._agent_pickup_targets[i]][0:2]
 
-            action_dir = np.clip(target - observations[agent_id]["self_position"], -1, 1) + 1
-            action = {
-                "x": action_dir[0],
-                "y": action_dir[1],
-            }
+            action_idxs = np.clip(target - observations[agent_id]["self_position"], -1, 1) + 1
 
             # Randomly rotate action to avoid stuck due to collision
             if np.random.uniform() < ROTATE_ACTION_PROB:
-                action["x"] = (action["x"] + 1) % 3
+                action_idxs[0] = (action_idxs[0] + 1) % 3
             if np.random.uniform() < ROTATE_ACTION_PROB:
-                action["y"] = (action["y"] + 1) % 3
+                action_idxs[1] = (action_idxs[1] + 1) % 3
 
+            action = action_idxs[0] * 3 + action_idxs[1]
             action_dict[agent_id] = action
 
         return action_dict

@@ -17,7 +17,6 @@ if __name__ == "__main__":
     done = False
     while not done:
         action_dict = {str(i): env.action_space.sample() for i in range(len(observations))}
-        print(env.action_space.sample())
 
         start_time = time.time()
         observations, rewards, dones, infos = env.step(action_dict=action_dict)

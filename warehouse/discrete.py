@@ -40,7 +40,7 @@ NUM_PICKUP_POINTS: int = 4 * len(PICKUP_RACKS_ARRANGEMENT) ** 2
 NUM_DELIVERY_POINTS: int = 4 * int(AREA_DIMENSION_M - 4)
 NUM_REQUESTS: int = 2
 
-MOVES: List[float] = [-1, 0, 1]
+MOVES: List[List[float]] = [[x, y] for x in [-1, 0, 1] for y in [-1, 0, 1]]
 
 PICKUP_REWARD: float = 1.0
 DELIVERY_REWARD: float = 1.0
@@ -79,9 +79,7 @@ class WarehouseDiscrete(MultiAgentEnv):
     }
     reward_range = (0.0, 1.0)
 
-    action_space = gym.spaces.Dict(
-        {"x": gym.spaces.Discrete(len(MOVES)), "y": gym.spaces.Discrete(len(MOVES))}
-    )
+    action_space = gym.spaces.Discrete(len(MOVES))
     observation_space = gym.spaces.Dict(
         {
             "self_position": gym.spaces.Box(
@@ -207,8 +205,8 @@ class WarehouseDiscrete(MultiAgentEnv):
         # Update agent positions
         for key, action in action_dict.items():
             idx = int(key)
-            x = self._agent_positions[idx][0] + MOVES[action["x"]]
-            y = self._agent_positions[idx][1] + MOVES[action["y"]]
+            x = self._agent_positions[idx][0] + MOVES[action][0]
+            y = self._agent_positions[idx][1] + MOVES[action][1]
 
             if not (BORDER_WIDTH_M <= x < WORLD_DIMENSION_M - BORDER_WIDTH_M):
                 x = self._agent_positions[idx][0]
