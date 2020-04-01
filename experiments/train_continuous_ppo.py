@@ -6,12 +6,12 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 
-from warehouse import WarehouseContinuous
+from warehouse import WarehouseContinuousSmall
 
 
 def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
     ray.init()
-    register_env("WarehouseContinuous-v0", lambda _: WarehouseContinuous())
+    register_env("WarehouseContinuousSmall-v0", lambda _: WarehouseContinuousSmall())
 
     tune.run(
         "PPO",
@@ -20,7 +20,7 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
         restore=restore_dir,
         checkpoint_freq=10,
         checkpoint_at_end=True,
-        config={"env": "WarehouseContinuous-v0", "num_gpus": 1, "num_workers": 1,},
+        config={"env": "WarehouseContinuousSmall-v0", "num_gpus": 1, "num_workers": 1,},
     )
 
 

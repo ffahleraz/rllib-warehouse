@@ -6,12 +6,12 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 
-from warehouse import WarehouseContinuous
+from warehouse import WarehouseContinuousSmall
 
 
 def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
     ray.init()
-    register_env("WarehouseContinuous-v0", lambda _: WarehouseContinuous())
+    register_env("WarehouseContinuousSmall-v0", lambda _: WarehouseContinuousSmall())
 
     tune.run(
         "SAC",
@@ -21,7 +21,7 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
         checkpoint_freq=10,
         checkpoint_at_end=True,
         config={
-            "env": "WarehouseContinuous-v0",
+            "env": "WarehouseContinuousSmall-v0",
             "Q_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
             "policy_model": {"hidden_activation": "relu", "hidden_layer_sizes": (256, 256, 64),},
             "horizon": 800,
