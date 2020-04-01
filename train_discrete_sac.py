@@ -34,7 +34,7 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
             "prioritized_replay": False,
             "target_network_update_freq": 1,
             "num_gpus": 1,
-            "num_workers": 1,
+            "num_workers": 4,
         },
     )
 

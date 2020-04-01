@@ -1,19 +1,17 @@
 import time
-from typing import Dict, Deque, List
+from typing import Dict, Deque
 from collections import deque
 
 import numpy as np
 
-import discrete
-from discrete import WarehouseDiscrete
+from warehouse import WarehouseContinuousSmall
 
 
-NUM_AGENTS: int = discrete.NUM_AGENTS
-NUM_REQUESTS: int = discrete.NUM_REQUESTS
-ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
+NUM_AGENTS: int = WarehouseContinuousSmall.NUM_AGENTS
+NUM_REQUESTS: int = WarehouseContinuousSmall.NUM_REQUESTS
 
 
-class WarehouseDiscreteSolver:
+class WarehouseContinuousSolver:
     def __init__(self) -> None:
         self._agent_pickup_targets = [-1] * NUM_AGENTS
 
@@ -35,15 +33,8 @@ class WarehouseDiscreteSolver:
                             break
                 target = observations[agent_id]["requests"][self._agent_pickup_targets[i]][0:2]
 
-            action_idxs = np.clip(target - observations[agent_id]["self_position"], -1, 1) + 1
-
-            # Randomly rotate action to avoid stuck due to collision
-            if np.random.uniform() < ROTATE_ACTION_PROB:
-                action_idxs[0] = (action_idxs[0] + 1) % 3
-            if np.random.uniform() < ROTATE_ACTION_PROB:
-                action_idxs[1] = (action_idxs[1] + 1) % 3
-
-            action = action_idxs[0] * 3 + action_idxs[1]
+            action = target - observations[agent_id]["self_position"]
+            action /= np.linalg.norm(action)
             action_dict[agent_id] = action
 
         return action_dict
@@ -53,19 +44,26 @@ if __name__ == "__main__":
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env = WarehouseDiscrete()
-    solver = WarehouseDiscreteSolver()
+    env = WarehouseContinuousSmall()
+    solver = WarehouseContinuousSolver()
+
     observations = env.reset()
+    for _, observation in observations.items():
+        assert env.observation_space.contains(observation)
 
     acc_rewards = [0.0, 0.0]
     done = False
     while not done:
         action_dict = solver.compute_action(observations)
+
         start_time = time.time()
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
         step_time_buffer.append(1.0 / (time.time() - start_time))
         env.render()
         render_time_buffer.append(1.0 / (time.time() - start_time))
+
+        for _, observation in observations.items():
+            assert env.observation_space.contains(observation)
 
         acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(NUM_AGENTS)]
         done = dones["__all__"]

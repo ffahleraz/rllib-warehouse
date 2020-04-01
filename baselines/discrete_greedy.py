@@ -1,18 +1,19 @@
 import time
-from typing import Dict, Deque
+from typing import Dict, Deque, List
 from collections import deque
 
 import numpy as np
 
-import continuous
-from continuous import WarehouseContinuous
+import warehouse.discrete as discrete
+from warehouse import WarehouseDiscrete
 
 
-NUM_AGENTS: int = continuous.NUM_AGENTS
-NUM_REQUESTS: int = continuous.NUM_REQUESTS
+NUM_AGENTS: int = discrete.NUM_AGENTS
+NUM_REQUESTS: int = discrete.NUM_REQUESTS
+ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
 
 
-class WarehouseContinuousSolver:
+class WarehouseDiscreteSolver:
     def __init__(self) -> None:
         self._agent_pickup_targets = [-1] * NUM_AGENTS
 
@@ -34,8 +35,15 @@ class WarehouseContinuousSolver:
                             break
                 target = observations[agent_id]["requests"][self._agent_pickup_targets[i]][0:2]
 
-            action = target - observations[agent_id]["self_position"]
-            action /= np.linalg.norm(action)
+            action_idxs = np.clip(target - observations[agent_id]["self_position"], -1, 1) + 1
+
+            # Randomly rotate action to avoid stuck due to collision
+            if np.random.uniform() < ROTATE_ACTION_PROB:
+                action_idxs[0] = (action_idxs[0] + 1) % 3
+            if np.random.uniform() < ROTATE_ACTION_PROB:
+                action_idxs[1] = (action_idxs[1] + 1) % 3
+
+            action = action_idxs[0] * 3 + action_idxs[1]
             action_dict[agent_id] = action
 
         return action_dict
@@ -45,8 +53,8 @@ if __name__ == "__main__":
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env = WarehouseContinuous()
-    solver = WarehouseContinuousSolver()
+    env = WarehouseDiscrete()
+    solver = WarehouseDiscreteSolver()
     observations = env.reset()
 
     acc_rewards = [0.0, 0.0]
