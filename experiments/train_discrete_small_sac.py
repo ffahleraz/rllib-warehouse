@@ -30,7 +30,7 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
             "normalize_actions": False,
             "timesteps_per_iteration": 600,
             "learning_starts": 6000,
-            "buffer_size": 60000,
+            "buffer_size": 240000,
             "prioritized_replay": False,
             "target_network_update_freq": 1,
             "num_gpus": 1,
