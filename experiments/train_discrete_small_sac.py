@@ -18,7 +18,7 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
         name=experiment_name,
         stop={"training_iteration": num_iterations},
         restore=restore_dir,
-        checkpoint_freq=10,
+        checkpoint_freq=100,
         checkpoint_at_end=True,
         config={
             "env": "WarehouseDiscreteSmall-v0",
@@ -42,9 +42,7 @@ def main(experiment_name: str, restore_dir: str, num_iterations: int) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("experiment_name", type=str, help="experiment name")
-    parser.add_argument(
-        "-n", "--num_iterations", type=int, required=True, help="number of training iterations"
-    )
+    parser.add_argument("num_iterations", type=int, help="number of training iterations")
     parser.add_argument("-r", "--restore_dir", type=str, help="path to the folder to restore model")
     args = parser.parse_args()
     main(
