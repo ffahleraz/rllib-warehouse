@@ -1,5 +1,5 @@
-warehouse-discrete-small-sac:
-    env: WarehouseDiscreteSmall-v0
+warehouse-continuous-small-sac:
+    env: WarehouseContinuousSmall-v0
     run: SAC
     stop:
         timesteps_total: 4000

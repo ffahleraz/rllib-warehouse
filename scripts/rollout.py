@@ -19,10 +19,16 @@ from warehouse import (
 def main(trial_dir: str, iteration: int, render: bool) -> None:
     ray.init()
 
-    register_env("WarehouseDiscreteSmall-v0", lambda _: WarehouseDiscreteSmall())
-    register_env("WarehouseDiscreteMedium-v0", lambda _: WarehouseDiscreteMedium())
-    register_env("WarehouseDiscreteLarge-v0", lambda _: WarehouseDiscreteLarge())
-    register_env("WarehouseContinuousSmall-v0", lambda _: WarehouseContinuousSmall())
+    params = json.load(open(os.path.join(trial_dir, "params.json"), "rb"))
+
+    env_map = {
+        "WarehouseDiscreteSmall-v0": WarehouseDiscreteSmall,
+        "WarehouseDiscreteMedium-v0": WarehouseDiscreteMedium,
+        "WarehouseDiscreteLarge-v0": WarehouseDiscreteLarge,
+        "WarehouseContinuousSmall-v0": WarehouseContinuousSmall,
+    }
+    for key in env_map:
+        register_env(key, lambda _: env_map[key]())
 
     checkpoint_paths = glob.glob(os.path.join(trial_dir, "checkpoint_*"))
     checkpoint_iterations = sorted(
@@ -37,8 +43,6 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
         trial_dir, f"checkpoint_{iteration_choice}", f"checkpoint-{iteration_choice}"
     )
 
-    params = json.load(open(os.path.join(trial_dir, "params.json"), "rb"))
-
     trainer = SACTrainer(config=params)
     trainer.restore(restore_dir)
 
@@ -49,7 +53,7 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
             f"Checkpoint at iteration {iteration} doesn't exist, loading the closest one at {iteration_choice} instead."
         )
 
-    env = gym.make(params["env"])
+    env = env_map[params["env"]]()
     observations = env.reset()
     done = False
     while not done:
