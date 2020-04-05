@@ -16,7 +16,7 @@ class WarehouseContinuousSmall(WarehouseContinuous):
             area_dimension=self.area_dimension,
             agent_init_positions=[[2.0, 2.0], [6.0, 8.0]],
             pickup_racks_arrangement=[4.0],
-            episode_duration_s=320,
+            episode_duration_s=200,
             pickup_wait_duration_s=40,
         )
 
@@ -33,7 +33,7 @@ class WarehouseContinuousMedium(WarehouseContinuous):
             area_dimension=self.area_dimension,
             agent_init_positions=[[2.0, 2.0], [2.0, 10.0], [10.0, 2.0], [10.0, 10.0]],
             pickup_racks_arrangement=[4.0, 8.0],
-            episode_duration_s=320,
+            episode_duration_s=200,
             pickup_wait_duration_s=40,
         )
 
@@ -67,6 +67,6 @@ class WarehouseContinuousLarge(WarehouseContinuous):
                 [14.0, 18.0],
             ],
             pickup_racks_arrangement=[4.0, 8.0, 12.0, 16.0],
-            episode_duration_s=320,
+            episode_duration_s=200,
             pickup_wait_duration_s=40,
         )

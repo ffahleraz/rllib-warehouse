@@ -18,12 +18,12 @@ warehouse-continuous-small-sac:
                 - 256
                 - 256
                 - 64
-        horizon: 600
+        horizon: 1000
         soft_horizon: False
         no_done_at_end: True
         normalize_actions: False
-        timesteps_per_iteration: 600
-        learning_starts: 6000
+        timesteps_per_iteration: 1000
+        learning_starts: 10000
         buffer_size: 240000
         prioritized_replay: False
         target_network_update_freq: 1
