@@ -3,7 +3,7 @@ warehouse-large-sac:
     run: SAC
     stop:
         training_iteration: 4000
-    checkpoint_freq: 100
+    checkpoint_freq: 200
     checkpoint_at_end: True
     config:
         Q_model: 
@@ -30,4 +30,4 @@ warehouse-large-sac:
         prioritized_replay: False
         target_network_update_freq: 1
         num_gpus: 1
-        num_workers: 4
+        num_workers: 2

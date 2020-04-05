@@ -3,7 +3,7 @@ warehouse-grid-medium-sac:
     run: SAC
     stop:
         training_iteration: 4000
-    checkpoint_freq: 100
+    checkpoint_freq: 200
     checkpoint_at_end: True
     config:
         Q_model: 
