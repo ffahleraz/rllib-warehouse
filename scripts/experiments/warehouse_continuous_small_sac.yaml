@@ -2,7 +2,7 @@ warehouse-continuous-small-sac:
     env: WarehouseContinuousSmall-v0
     run: SAC
     stop:
-        timesteps_total: 4000
+        training_iteration: 4000
     checkpoint_freq: 100
     checkpoint_at_end: True
     config:
