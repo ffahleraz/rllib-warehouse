@@ -1,15 +1,17 @@
 import time
+import argparse
 from typing import Deque
 from collections import deque
 
 from warehouse import WarehouseContinuousSmall
 
 
-if __name__ == "__main__":
+def main(env_variant: str) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env = WarehouseContinuousSmall()
+    if env_variant == "small":
+        env = WarehouseContinuousSmall()
 
     observations = env.reset()
     for _, observation in observations.items():
@@ -32,3 +34,10 @@ if __name__ == "__main__":
         print(
             f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
         )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("env_variant", type=str, choices=["small"], help="environment variant")
+    args = parser.parse_args()
+    main(env_variant=args.env_variant)

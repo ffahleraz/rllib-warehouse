@@ -1,5 +1,6 @@
 import time
-from typing import Dict, Deque
+import argparse
+from typing import Dict, Deque, List
 from collections import deque
 
 import numpy as np
@@ -38,11 +39,13 @@ class WarehouseContinuousSolver:
         return action_dict
 
 
-if __name__ == "__main__":
+def main(env_variant: str) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env = WarehouseContinuousSmall()
+    if env_variant == "small":
+        env = WarehouseContinuousSmall()
+
     solver = WarehouseContinuousSolver(num_agents=env.num_agents, num_requests=env.num_requests)
 
     observations = env.reset()
@@ -74,3 +77,10 @@ if __name__ == "__main__":
         )
 
         step_count += 1
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("env_variant", type=str, choices=["small"], help="environment variant")
+    args = parser.parse_args()
+    main(env_variant=args.env_variant)

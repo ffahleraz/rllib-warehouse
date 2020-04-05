@@ -27,8 +27,8 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
         "WarehouseDiscreteLarge-v0": WarehouseDiscreteLarge,
         "WarehouseContinuousSmall-v0": WarehouseContinuousSmall,
     }
-    for key in env_map:
-        register_env(key, lambda _: env_map[key]())
+    for key, val in env_map.items():
+        register_env(key, lambda _: val())
 
     checkpoint_paths = glob.glob(os.path.join(trial_dir, "checkpoint_*"))
     checkpoint_iterations = sorted(
