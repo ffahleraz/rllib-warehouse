@@ -40,10 +40,11 @@ from Box2D.b2 import (
 #       - NUM_REQUESTS >= NUM_AGENTS
 #   - Params:
 #       - WORLD is the viewport
-#       - All positions are in the frame of WORLD
 #       - WORLD_DIMENSION is the dimension of WORLD in meters
 #       - AREA is the playable area (excluding borders)
 #       - AREA_DIMENSION is the dimension of AREA in meters
+#       - Internal calculations & rendering are in the frame of WORLD, while all exposed APIs (init
+#         args & observations) are in the frame of AREA
 
 # Environment
 PICKUP_REWARD: float = 1.0
@@ -51,6 +52,7 @@ DELIVERY_REWARD: float = 1.0
 
 FRAMES_PER_SECOND: int = 5
 AGENT_RADIUS: float = 0.4
+BORDER_WIDTH: float = 1.0
 PICKUP_POSITION_TOLERANCE: float = 0.4
 DELIVERY_POSITION_TOLERANCE: float = 0.4
 
@@ -85,8 +87,7 @@ class WarehouseContinuous(MultiAgentEnv):
         self,
         num_agents: int,
         num_requests: int,
-        world_dimension: float,
-        border_width: float,
+        area_dimension: float,
         agent_init_positions: List[List[float]],
         pickup_racks_arrangement: List[float],
         episode_duration_s: int,
@@ -95,11 +96,14 @@ class WarehouseContinuous(MultiAgentEnv):
         super(WarehouseContinuous, self).__init__()
 
         # Constants
-        self._world_dimension: float = world_dimension
-        self._area_dimension: float = world_dimension - 2 * border_width
-        self._border_width: float = border_width
-        self._agent_init_positions: List[List[float]] = agent_init_positions
-        self._pickup_racks_arrangement: List[float] = pickup_racks_arrangement
+        self._area_dimension: float = area_dimension
+        self._world_dimension: float = area_dimension + 2 * BORDER_WIDTH
+        self._agent_init_positions: List[List[float]] = [
+            [pos[0] + BORDER_WIDTH, pos[1] + BORDER_WIDTH] for pos in agent_init_positions
+        ]
+        self._pickup_racks_arrangement: List[float] = [
+            val + BORDER_WIDTH for val in pickup_racks_arrangement
+        ]
 
         self._num_agents: int = num_agents
         self._num_pickup_points: int = 4 * len(pickup_racks_arrangement) ** 2
@@ -117,34 +121,28 @@ class WarehouseContinuous(MultiAgentEnv):
         self.observation_space = gym.spaces.Dict(
             {
                 "self_position": gym.spaces.Box(
-                    low=self._border_width,
-                    high=self._world_dimension - self._border_width,
-                    shape=(2,),
-                    dtype=np.float32,
+                    low=0.0, high=self._area_dimension, shape=(2,), dtype=np.float32,
                 ),
                 "self_availability": gym.spaces.MultiBinary(1),
                 "self_delivery_target": gym.spaces.Box(
-                    low=self._border_width,
-                    high=self._world_dimension - self._border_width,
-                    shape=(2,),
-                    dtype=np.float32,
+                    low=0.0, high=self._area_dimension, shape=(2,), dtype=np.float32,
                 ),
                 "other_positions": gym.spaces.Box(
-                    low=self._border_width,
-                    high=self._world_dimension - self._border_width,
+                    low=0.0,
+                    high=self._area_dimension,
                     shape=(self._num_agents - 1, 2),
                     dtype=np.float32,
                 ),
                 "other_availabilities": gym.spaces.MultiBinary(self._num_agents - 1),
                 "other_delivery_targets": gym.spaces.Box(
-                    low=self._border_width,
-                    high=self._world_dimension - self._border_width,
+                    low=0.0,
+                    high=self._area_dimension,
                     shape=(self._num_agents - 1, 2),
                     dtype=np.float32,
                 ),
                 "requests": gym.spaces.Box(
-                    low=self._border_width,
-                    high=self._world_dimension - self._border_width,
+                    low=0.0,
+                    high=self._area_dimension,
                     shape=(self._num_requests, 4),
                     dtype=np.float32,
                 ),
@@ -186,26 +184,20 @@ class WarehouseContinuous(MultiAgentEnv):
         # Init borders
         self._border_bodies = [
             self._world.CreateStaticBody(
-                position=(self._world_dimension / 2, self._border_width / 2),
-                shapes=polygonShape(box=(self._world_dimension / 2, self._border_width / 2)),
+                position=(self._world_dimension / 2, BORDER_WIDTH / 2),
+                shapes=polygonShape(box=(self._world_dimension / 2, BORDER_WIDTH / 2)),
             ),
             self._world.CreateStaticBody(
-                position=(
-                    self._world_dimension / 2,
-                    self._world_dimension - self._border_width / 2,
-                ),
-                shapes=polygonShape(box=(self._world_dimension / 2, self._border_width / 2)),
+                position=(self._world_dimension / 2, self._world_dimension - BORDER_WIDTH / 2,),
+                shapes=polygonShape(box=(self._world_dimension / 2, BORDER_WIDTH / 2)),
             ),
             self._world.CreateStaticBody(
-                position=(self._border_width / 2, self._world_dimension / 2,),
-                shapes=polygonShape(box=(self._border_width / 2, self._world_dimension / 2)),
+                position=(BORDER_WIDTH / 2, self._world_dimension / 2,),
+                shapes=polygonShape(box=(BORDER_WIDTH / 2, self._world_dimension / 2)),
             ),
             self._world.CreateStaticBody(
-                position=(
-                    self._world_dimension - self._border_width / 2,
-                    self._world_dimension / 2,
-                ),
-                shapes=polygonShape(box=(self._border_width / 2, self._world_dimension / 2)),
+                position=(self._world_dimension - BORDER_WIDTH / 2, self._world_dimension / 2,),
+                shapes=polygonShape(box=(BORDER_WIDTH / 2, self._world_dimension / 2)),
             ),
         ]
 
@@ -228,16 +220,10 @@ class WarehouseContinuous(MultiAgentEnv):
         for val in range(2, int(self._area_dimension) - 2):
             delivery_point_positions.extend(
                 [
-                    [self._border_width + val + 0.5, self._border_width + 0.5],
-                    [
-                        self._border_width + val + 0.5,
-                        self._world_dimension - self._border_width - 0.5,
-                    ],
-                    [self._border_width + 0.5, self._border_width + val + 0.5],
-                    [
-                        self._world_dimension - self._border_width - 0.5,
-                        self._border_width + val + 0.5,
-                    ],
+                    [BORDER_WIDTH + val + 0.5, BORDER_WIDTH + 0.5],
+                    [BORDER_WIDTH + val + 0.5, self._world_dimension - BORDER_WIDTH - 0.5,],
+                    [BORDER_WIDTH + 0.5, BORDER_WIDTH + val + 0.5],
+                    [self._world_dimension - BORDER_WIDTH - 0.5, BORDER_WIDTH + val + 0.5,],
                 ]
             )
         self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.float32)
@@ -273,13 +259,14 @@ class WarehouseContinuous(MultiAgentEnv):
 
         return {
             str(i): {
-                "self_position": self._agent_positions[i],
+                "self_position": self._agent_positions[i] - BORDER_WIDTH,
                 "self_availability": agent_availabilities[np.newaxis, i],
-                "self_delivery_target": agent_delivery_target_positions[i],
-                "other_positions": np.delete(self._agent_positions, i, axis=0),
+                "self_delivery_target": agent_delivery_target_positions[i] - BORDER_WIDTH,
+                "other_positions": np.delete(self._agent_positions, i, axis=0) - BORDER_WIDTH,
                 "other_availabilities": np.delete(agent_availabilities, i, axis=0),
-                "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0),
-                "requests": requests,
+                "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0)
+                - BORDER_WIDTH,
+                "requests": requests - BORDER_WIDTH,
             }
             for i in range(self._num_agents)
         }
@@ -394,13 +381,14 @@ class WarehouseContinuous(MultiAgentEnv):
 
         observations = {
             str(i): {
-                "self_position": self._agent_positions[i],
+                "self_position": self._agent_positions[i] - BORDER_WIDTH,
                 "self_availability": agent_availabilities[np.newaxis, i],
-                "self_delivery_target": agent_delivery_target_positions[i],
-                "other_positions": np.delete(self._agent_positions, i, axis=0),
+                "self_delivery_target": agent_delivery_target_positions[i] - BORDER_WIDTH,
+                "other_positions": np.delete(self._agent_positions, i, axis=0) - BORDER_WIDTH,
                 "other_availabilities": np.delete(agent_availabilities, i, axis=0),
-                "other_delivery_targets": np.delete(agent_delivery_target_positions, 1, axis=0),
-                "requests": requests,
+                "other_delivery_targets": np.delete(agent_delivery_target_positions, 1, axis=0)
+                - BORDER_WIDTH,
+                "requests": requests - BORDER_WIDTH,
             }
             for i in range(self._num_agents)
         }

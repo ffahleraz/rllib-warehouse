@@ -30,7 +30,7 @@ __all__ = ["WarehouseDiscrete"]
 #       - AREA_DIMENSION is the dimension AREA in meters
 
 # Environment
-MOVES: List[List[float]] = [[x, y] for x in [-1, 0, 1] for y in [-1, 0, 1]]
+MOVES: List[List[int]] = [[x, y] for x in [-1, 0, 1] for y in [-1, 0, 1]]
 
 PICKUP_REWARD: float = 1.0
 DELIVERY_REWARD: float = 1.0
@@ -71,18 +71,18 @@ class WarehouseDiscrete(MultiAgentEnv):
         self,
         num_agents: int,
         num_requests: int,
-        area_dimension: float,
-        agent_init_positions: List[List[float]],
-        pickup_racks_arrangement: List[float],
+        area_dimension: int,
+        agent_init_positions: List[List[int]],
+        pickup_racks_arrangement: List[int],
         episode_duration: int,
         pickup_wait_duration: int,
     ) -> None:
         super(WarehouseDiscrete, self).__init__()
 
         # Constants
-        self._area_dimension: float = area_dimension
-        self._agent_init_positions: List[List[float]] = agent_init_positions
-        self._pickup_racks_arrangement: List[float] = pickup_racks_arrangement
+        self._area_dimension: int = area_dimension
+        self._agent_init_positions: List[List[int]] = agent_init_positions
+        self._pickup_racks_arrangement: List[int] = pickup_racks_arrangement
 
         self._num_agents: int = num_agents
         self._num_pickup_points: int = 4 * len(pickup_racks_arrangement) ** 2
@@ -144,7 +144,7 @@ class WarehouseDiscrete(MultiAgentEnv):
         self._episode_time = 0
 
         # Init agents
-        agent_positions: List[List[float]] = []
+        agent_positions: List[List[int]] = []
         for x, y in self._agent_init_positions:
             agent_positions.append([x, y])
         self._agent_positions = np.array(agent_positions, dtype=np.int32)

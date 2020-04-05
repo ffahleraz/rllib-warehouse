@@ -31,7 +31,7 @@ class WarehouseDiscreteMedium(WarehouseDiscrete):
             num_agents=self.num_agents,
             num_requests=self.num_requests,
             area_dimension=self.area_dimension,
-            agent_init_positions=[[2, 2], [2, 6], [6, 2], [6, 6]],
+            agent_init_positions=[[2, 2], [2, 10], [10, 2], [10, 10]],
             pickup_racks_arrangement=[4, 8],
             episode_duration=600,
             pickup_wait_duration=40,

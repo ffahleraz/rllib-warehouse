@@ -5,7 +5,7 @@ from collections import deque
 
 import numpy as np
 
-from warehouse import WarehouseContinuousSmall
+from warehouse import WarehouseContinuousSmall, WarehouseContinuousMedium, WarehouseContinuousLarge
 
 
 class WarehouseContinuousSolver:
@@ -45,6 +45,10 @@ def main(env_variant: str) -> None:
 
     if env_variant == "small":
         env = WarehouseContinuousSmall()
+    elif env_variant == "medium":
+        env = WarehouseContinuousMedium()
+    else:
+        env = WarehouseContinuousLarge()
 
     solver = WarehouseContinuousSolver(num_agents=env.num_agents, num_requests=env.num_requests)
 
@@ -81,6 +85,8 @@ def main(env_variant: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("env_variant", type=str, choices=["small"], help="environment variant")
+    parser.add_argument(
+        "env_variant", type=str, choices=["small", "medium", "large"], help="environment variant"
+    )
     args = parser.parse_args()
     main(env_variant=args.env_variant)
