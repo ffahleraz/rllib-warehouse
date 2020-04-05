@@ -1,16 +1,16 @@
-from warehouse.discrete.core import WarehouseDiscrete
+from warehouse.grid.core import WarehouseGrid
 
 
-__all__ = ["WarehouseDiscreteSmall", "WarehouseDiscreteMedium", "WarehouseDiscreteLarge"]
+__all__ = ["WarehouseGridSmall", "WarehouseGridMedium", "WarehouseGridLarge"]
 
 
-class WarehouseDiscreteSmall(WarehouseDiscrete):
+class WarehouseGridSmall(WarehouseGrid):
     def __init__(self) -> None:
         self.num_agents: int = 2
         self.num_requests: int = 2
         self.area_dimension: int = 8
 
-        super(WarehouseDiscreteSmall, self).__init__(
+        super(WarehouseGridSmall, self).__init__(
             num_agents=self.num_agents,
             num_requests=self.num_requests,
             area_dimension=self.area_dimension,
@@ -21,13 +21,13 @@ class WarehouseDiscreteSmall(WarehouseDiscrete):
         )
 
 
-class WarehouseDiscreteMedium(WarehouseDiscrete):
+class WarehouseGridMedium(WarehouseGrid):
     def __init__(self) -> None:
         self.num_agents: int = 4
-        self.num_requests: int = 8
+        self.num_requests: int = 4
         self.area_dimension: int = 12
 
-        super(WarehouseDiscreteMedium, self).__init__(
+        super(WarehouseGridMedium, self).__init__(
             num_agents=self.num_agents,
             num_requests=self.num_requests,
             area_dimension=self.area_dimension,
@@ -38,13 +38,13 @@ class WarehouseDiscreteMedium(WarehouseDiscrete):
         )
 
 
-class WarehouseDiscreteLarge(WarehouseDiscrete):
+class WarehouseGridLarge(WarehouseGrid):
     def __init__(self) -> None:
         self.num_agents: int = 16
-        self.num_requests: int = 24
+        self.num_requests: int = 16
         self.area_dimension: int = 20
 
-        super(WarehouseDiscreteLarge, self).__init__(
+        super(WarehouseGridLarge, self).__init__(
             num_agents=self.num_agents,
             num_requests=self.num_requests,
             area_dimension=self.area_dimension,

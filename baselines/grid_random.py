@@ -3,7 +3,7 @@ import argparse
 from typing import Deque
 from collections import deque
 
-from warehouse import WarehouseDiscreteSmall, WarehouseDiscreteMedium, WarehouseDiscreteLarge
+from warehouse import WarehouseGridSmall, WarehouseGridMedium, WarehouseGridLarge
 
 
 def main(env_variant: str) -> None:
@@ -11,11 +11,11 @@ def main(env_variant: str) -> None:
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
     if env_variant == "small":
-        env = WarehouseDiscreteSmall()
+        env = WarehouseGridSmall()
     elif "medium":
-        env = WarehouseDiscreteMedium()
+        env = WarehouseGridMedium()
     else:
-        env = WarehouseDiscreteLarge()
+        env = WarehouseGridLarge()
 
     observations = env.reset()
     for _, observation in observations.items():

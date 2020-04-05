@@ -1,16 +1,16 @@
-from warehouse.continuous.core import WarehouseContinuous
+from warehouse.default.core import Warehouse
 
 
-__all__ = ["WarehouseContinuousSmall", "WarehouseContinuousMedium", "WarehouseContinuousLarge"]
+__all__ = ["WarehouseSmall", "WarehouseMedium", "WarehouseLarge"]
 
 
-class WarehouseContinuousSmall(WarehouseContinuous):
+class WarehouseSmall(Warehouse):
     def __init__(self) -> None:
         self.num_agents: int = 2
         self.num_requests: int = 2
         self.area_dimension: float = 8.0
 
-        super(WarehouseContinuousSmall, self).__init__(
+        super(WarehouseSmall, self).__init__(
             num_agents=self.num_agents,
             num_requests=self.num_requests,
             area_dimension=self.area_dimension,
@@ -21,13 +21,13 @@ class WarehouseContinuousSmall(WarehouseContinuous):
         )
 
 
-class WarehouseContinuousMedium(WarehouseContinuous):
+class WarehouseMedium(Warehouse):
     def __init__(self) -> None:
         self.num_agents: int = 4
-        self.num_requests: int = 8
+        self.num_requests: int = 4
         self.area_dimension: float = 12.0
 
-        super(WarehouseContinuousMedium, self).__init__(
+        super(WarehouseMedium, self).__init__(
             num_agents=self.num_agents,
             num_requests=self.num_requests,
             area_dimension=self.area_dimension,
@@ -38,13 +38,13 @@ class WarehouseContinuousMedium(WarehouseContinuous):
         )
 
 
-class WarehouseContinuousLarge(WarehouseContinuous):
+class WarehouseLarge(Warehouse):
     def __init__(self) -> None:
         self.num_agents: int = 16
-        self.num_requests: int = 24
+        self.num_requests: int = 16
         self.area_dimension: float = 20.0
 
-        super(WarehouseContinuousLarge, self).__init__(
+        super(WarehouseLarge, self).__init__(
             num_agents=self.num_agents,
             num_requests=self.num_requests,
             area_dimension=self.area_dimension,

@@ -5,13 +5,13 @@ from collections import deque
 
 import numpy as np
 
-from warehouse import WarehouseDiscreteSmall, WarehouseDiscreteMedium, WarehouseDiscreteLarge
+from warehouse import WarehouseGridSmall, WarehouseGridMedium, WarehouseGridLarge
 
 
 ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
 
 
-class WarehouseDiscreteSolver:
+class WarehouseGridSolver:
     def __init__(self, num_agents: int, num_requests: int) -> None:
         self._num_agents = num_agents
         self._num_requests = num_requests
@@ -54,13 +54,13 @@ def main(env_variant: str) -> None:
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
     if env_variant == "small":
-        env = WarehouseDiscreteSmall()
+        env = WarehouseGridSmall()
     elif env_variant == "medium":
-        env = WarehouseDiscreteMedium()
+        env = WarehouseGridMedium()
     else:
-        env = WarehouseDiscreteLarge()
+        env = WarehouseGridLarge()
 
-    solver = WarehouseDiscreteSolver(num_agents=env.num_agents, num_requests=env.num_requests)
+    solver = WarehouseGridSolver(num_agents=env.num_agents, num_requests=env.num_requests)
 
     observations = env.reset()
     for _, observation in observations.items():

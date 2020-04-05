@@ -1,5 +1,5 @@
-warehouse-discrete-medium-sac:
-    env: WarehouseDiscreteMedium-v0
+warehouse-grid-medium-sac:
+    env: WarehouseGridMedium-v0
     run: SAC
     stop:
         training_iteration: 4000

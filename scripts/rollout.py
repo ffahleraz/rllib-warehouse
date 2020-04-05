@@ -9,10 +9,10 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 
 from warehouse import (
-    WarehouseDiscreteSmall,
-    WarehouseDiscreteMedium,
-    WarehouseDiscreteLarge,
-    WarehouseContinuousSmall,
+    WarehouseGridSmall,
+    WarehouseGridMedium,
+    WarehouseGridLarge,
+    WarehouseSmall,
 )
 
 
@@ -22,10 +22,10 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
     params = json.load(open(os.path.join(trial_dir, "params.json"), "rb"))
 
     env_map = {
-        "WarehouseDiscreteSmall-v0": WarehouseDiscreteSmall,
-        "WarehouseDiscreteMedium-v0": WarehouseDiscreteMedium,
-        "WarehouseDiscreteLarge-v0": WarehouseDiscreteLarge,
-        "WarehouseContinuousSmall-v0": WarehouseContinuousSmall,
+        "WarehouseGridSmall-v0": WarehouseGridSmall,
+        "WarehouseGridMedium-v0": WarehouseGridMedium,
+        "WarehouseGridLarge-v0": WarehouseGridLarge,
+        "WarehouseSmall-v0": WarehouseSmall,
     }
     for key, val in env_map.items():
         register_env(key, lambda _: val())
