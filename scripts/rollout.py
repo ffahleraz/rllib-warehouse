@@ -55,14 +55,24 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
 
     env = env_map[params["env"]]()
     observations = env.reset()
+
+    acc_rewards = [0.0 for i in range(len(observations))]
     done = False
+    step_count = 0
     while not done:
         action_dict = {
             f"{i}": trainer.compute_action(observations[f"{i}"]) for i in range(env.num_agents)
         }
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
-        done = dones["__all__"]
         env.render()
+
+        acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(env.num_agents)]
+        done = dones["__all__"]
+
+        print(f"\n=== Step {step_count} ===")
+        print("Rewards:", *acc_rewards)
+
+        step_count += 1
 
 
 if __name__ == "__main__":
