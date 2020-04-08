@@ -1,5 +1,5 @@
-warehouse-small-sac:
-    env: WarehouseSmall-v0
+warehouse-hard-large-sac:
+    env: WarehouseHardLarge-v0
     run: SAC
     stop:
         training_iteration: 4000
@@ -9,23 +9,25 @@ warehouse-small-sac:
         Q_model: 
             hidden_activation: relu
             hidden_layer_sizes: 
-                - 256
+                - 1024
+                - 512
                 - 256
                 - 64
         policy_model:
             hidden_activation: relu
             hidden_layer_sizes: 
-                - 256
+                - 1024
+                - 512
                 - 256
                 - 64
-        horizon: 600
+        horizon: 2000
         soft_horizon: False
         no_done_at_end: True
         normalize_actions: False
-        timesteps_per_iteration: 600
-        learning_starts: 6000
+        timesteps_per_iteration: 2000
+        learning_starts: 20000
         buffer_size: 240000
         prioritized_replay: False
         target_network_update_freq: 1
         num_gpus: 1
-        num_workers: 4
+        num_workers: 2

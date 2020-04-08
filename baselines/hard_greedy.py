@@ -5,13 +5,14 @@ from collections import deque
 
 import numpy as np
 
-from warehouse import WarehouseGridSmall, WarehouseGridMedium, WarehouseGridLarge
+from warehouse import WarehouseHardSmall, WarehouseHardMedium, WarehouseHardLarge
 
 
 ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
+EPSILON: float = 0.1
 
 
-class WarehouseGridSolver:
+class WarehouseSolver:
     def __init__(self, num_agents: int, num_requests: int) -> None:
         self._num_agents = num_agents
         self._num_requests = num_requests
@@ -35,7 +36,18 @@ class WarehouseGridSolver:
                             break
                 target = observations[agent_id]["requests"][self._agent_pickup_targets[i]][0:2]
 
-            action_idxs = np.clip(target - observations[agent_id]["self_position"], -1, 1) + 1
+            action_dir = target - observations[agent_id]["self_position"]
+            action_idxs: List[int] = [0, 0]
+
+            if action_dir[0] > EPSILON:
+                action_idxs[0] = 2
+            elif action_dir[0] < -EPSILON:
+                action_idxs[0] = 0
+
+            if action_dir[1] > EPSILON:
+                action_idxs[1] = 2
+            elif action_dir[1] < -EPSILON:
+                action_idxs[1] = 0
 
             # Randomly rotate action to avoid stuck due to collision
             if np.random.uniform() < ROTATE_ACTION_PROB:
@@ -54,13 +66,13 @@ def main(env_variant: str) -> None:
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
     if env_variant == "small":
-        env = WarehouseGridSmall()
+        env = WarehouseHardSmall()
     elif env_variant == "medium":
-        env = WarehouseGridMedium()
+        env = WarehouseHardMedium()
     else:
-        env = WarehouseGridLarge()
+        env = WarehouseHardLarge()
 
-    solver = WarehouseGridSolver(num_agents=env.num_agents, num_requests=env.num_requests)
+    solver = WarehouseSolver(num_agents=env.num_agents, num_requests=env.num_requests)
 
     observations = env.reset()
     for _, observation in observations.items():

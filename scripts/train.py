@@ -7,20 +7,24 @@ from ray.tune.registry import register_env
 from ray.tune.tune import run_experiments
 
 from warehouse import (
-    WarehouseGridSmall,
-    WarehouseGridMedium,
-    WarehouseGridLarge,
     WarehouseSmall,
+    WarehouseMedium,
+    WarehouseLarge,
+    WarehouseHardSmall,
+    WarehouseHardMedium,
+    WarehouseHardLarge,
 )
 
 
 def main(config_path: str) -> None:
     ray.init()
 
-    register_env("WarehouseGridSmall-v0", lambda _: WarehouseGridSmall())
-    register_env("WarehouseGridMedium-v0", lambda _: WarehouseGridMedium())
-    register_env("WarehouseGridLarge-v0", lambda _: WarehouseGridLarge())
     register_env("WarehouseSmall-v0", lambda _: WarehouseSmall())
+    register_env("WarehouseMedium-v0", lambda _: WarehouseMedium())
+    register_env("WarehouseLarge-v0", lambda _: WarehouseLarge())
+    register_env("WarehouseHardSmall-v0", lambda _: WarehouseHardSmall())
+    register_env("WarehouseHardMedium-v0", lambda _: WarehouseHardMedium())
+    register_env("WarehouseHardLarge-v0", lambda _: WarehouseHardLarge())
 
     with open(args.config_path) as config_file:
         experiments = yaml.safe_load(config_file)

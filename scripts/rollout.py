@@ -1,4 +1,5 @@
 import argparse
+import time
 
 import json
 import glob
@@ -9,10 +10,12 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 
 from warehouse import (
-    WarehouseGridSmall,
-    WarehouseGridMedium,
-    WarehouseGridLarge,
     WarehouseSmall,
+    WarehouseMedium,
+    WarehouseLarge,
+    WarehouseHardSmall,
+    WarehouseHardMedium,
+    WarehouseHardLarge,
 )
 
 
@@ -22,10 +25,12 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
     params = json.load(open(os.path.join(trial_dir, "params.json"), "rb"))
 
     env_map = {
-        "WarehouseGridSmall-v0": WarehouseGridSmall,
-        "WarehouseGridMedium-v0": WarehouseGridMedium,
-        "WarehouseGridLarge-v0": WarehouseGridLarge,
         "WarehouseSmall-v0": WarehouseSmall,
+        "WarehouseMedium-v0": WarehouseMedium,
+        "WarehouseLarge-v0": WarehouseLarge,
+        "WarehouseHardSmall-v0": WarehouseHardSmall,
+        "WarehouseHardMedium-v0": WarehouseHardMedium,
+        "WarehouseHardLarge-v0": WarehouseHardLarge,
     }
     for key, val in env_map.items():
         register_env(key, lambda _: val())
@@ -64,7 +69,6 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
             f"{i}": trainer.compute_action(observations[f"{i}"]) for i in range(env.num_agents)
         }
         observations, rewards, dones, infos = env.step(action_dict=action_dict)
-        env.render()
 
         acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(env.num_agents)]
         done = dones["__all__"]
@@ -73,6 +77,10 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
         print("Rewards:", *acc_rewards)
 
         step_count += 1
+
+        if render:
+            env.render()
+            time.sleep(0.1)
 
 
 if __name__ == "__main__":

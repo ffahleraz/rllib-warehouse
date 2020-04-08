@@ -1,5 +1,5 @@
-warehouse-small-sac:
-    env: WarehouseSmall-v0
+warehouse-hard-small-sac:
+    env: WarehouseHardSmall-v0
     run: SAC
     stop:
         training_iteration: 4000
@@ -18,12 +18,12 @@ warehouse-small-sac:
                 - 256
                 - 256
                 - 64
-        horizon: 600
+        horizon: 2000
         soft_horizon: False
         no_done_at_end: True
         normalize_actions: False
-        timesteps_per_iteration: 600
-        learning_starts: 6000
+        timesteps_per_iteration: 2000
+        learning_starts: 20000
         buffer_size: 240000
         prioritized_replay: False
         target_network_update_freq: 1
