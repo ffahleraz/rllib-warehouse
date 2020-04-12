@@ -13,7 +13,6 @@ warehouse-large-sac:
             hidden_activation: relu
             hidden_layer_sizes: [2048, 2048, 512, 256]
         tau: 0.005
-        exploration_enabled: True
         optimization:
             actor_learning_rate: 0.0003
             critic_learning_rate: 0.0003
