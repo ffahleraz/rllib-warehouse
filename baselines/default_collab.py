@@ -5,19 +5,17 @@ from collections import deque
 
 import numpy as np
 
-from warehouse import WarehouseHardSmall, WarehouseHardMedium, WarehouseHardLarge
+from warehouse import WarehouseSmall, WarehouseMedium, WarehouseLarge
 
 
-MOVEMENT_STEP_EPSILON: float = 0.1
-COLLISION_AVOIDANCE_EPSILON: float = 0.8
-STEP_ROTATION_DEG: int = 90
+ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
 
 
-class WarehouseSolver:
-    def __init__(self, num_agents: int, num_requests: int, fps: int) -> None:
+class WarehouseGridSolver:
+    def __init__(self, num_agents: int, num_requests: int) -> None:
         self._num_agents = num_agents
         self._num_requests = num_requests
-        self._fps = fps
+        self._agent_pickup_targets = [-1] * num_agents
 
     def compute_action(
         self, observations: Dict[str, Dict[str, np.ndarray]]
@@ -27,44 +25,28 @@ class WarehouseSolver:
         for i in range(self._num_agents):
             agent_id = f"{i}"
             if observations[agent_id]["self_availability"][0] == 0:
-                target_position = observations[agent_id]["self_delivery_target"]
+                self._agent_pickup_targets[i] = -1
+                target = observations[agent_id]["self_delivery_target"]
             else:
-                target_position = self._find_closest(
-                    observations[agent_id]["self_position"], observations[agent_id]["requests"]
-                )
+                if self._agent_pickup_targets[i] == -1:
+                    for j in range(self._num_requests):
+                        if j not in self._agent_pickup_targets:
+                            self._agent_pickup_targets[i] = j
+                            break
+                target = observations[agent_id]["requests"][self._agent_pickup_targets[i]][0:2]
 
-            delta = target_position - observations[agent_id]["self_position"]
-            step = np.sign(delta).astype(np.int32)
-            step[np.absolute(delta) < MOVEMENT_STEP_EPSILON] = 0
-            future_position = observations[agent_id]["self_position"] + step / self._fps
+            action_idxs = np.clip(target - observations[agent_id]["self_position"], -1, 1) + 1
 
             # Randomly rotate action to avoid stuck due to collision
-            distance_to_other_agents = np.linalg.norm(
-                np.repeat(future_position[np.newaxis, :], self._num_agents - 1, axis=0)
-                - observations[agent_id]["other_positions"],
-                axis=1,
-            )
-            if any(distance_to_other_agents < COLLISION_AVOIDANCE_EPSILON):
-                step = self._rotate_step(step, STEP_ROTATION_DEG)
+            if np.random.uniform() < ROTATE_ACTION_PROB:
+                action_idxs[0] = (action_idxs[0] + 1) % 3
+            if np.random.uniform() < ROTATE_ACTION_PROB:
+                action_idxs[1] = (action_idxs[1] + 1) % 3
 
-            action_idxs = step + 1
             action = action_idxs[0] * 3 + action_idxs[1]
             action_dict[agent_id] = action
 
         return action_dict
-
-    def _find_closest(self, agent_position: np.ndarray, requests: np.ndarray) -> np.ndarray:
-        deltas = np.absolute(
-            np.repeat(agent_position[np.newaxis, :], self._num_requests, axis=0) - requests[:, 0:2],
-        )
-        distances = np.sum(deltas, axis=1)
-        return requests[np.argmin(distances)][0:2]
-
-    def _rotate_step(self, step: np.ndarray, angle_deg: float) -> np.ndarray:
-        theta = np.radians(angle_deg)
-        c, s = np.cos(theta), np.sin(theta)
-        R = np.array(((c, -s), (s, c)))
-        return np.rint(np.dot(R, step)).astype(np.int32)
 
 
 def main(env_variant: str) -> None:
@@ -72,17 +54,13 @@ def main(env_variant: str) -> None:
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
     if env_variant == "small":
-        env = WarehouseHardSmall()
+        env = WarehouseSmall()
     elif env_variant == "medium":
-        env = WarehouseHardMedium()
+        env = WarehouseMedium()
     else:
-        env = WarehouseHardLarge()
+        env = WarehouseLarge()
 
-    solver = WarehouseSolver(
-        num_agents=env.num_agents,
-        num_requests=env.num_requests,
-        fps=env.metadata["video.frames_per_second"],
-    )
+    solver = WarehouseGridSolver(num_agents=env.num_agents, num_requests=env.num_requests)
 
     observations = env.reset()
     for _, observation in observations.items():

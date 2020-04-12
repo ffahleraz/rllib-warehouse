@@ -8,14 +8,13 @@ import numpy as np
 from warehouse import WarehouseSmall, WarehouseMedium, WarehouseLarge
 
 
-ROTATE_ACTION_PROB: float = 0.1  # To avoid stuck due to collision
+STEP_ROTATION_DEG: int = 45
 
 
 class WarehouseGridSolver:
     def __init__(self, num_agents: int, num_requests: int) -> None:
         self._num_agents = num_agents
         self._num_requests = num_requests
-        self._agent_pickup_targets = [-1] * num_agents
 
     def compute_action(
         self, observations: Dict[str, Dict[str, np.ndarray]]
@@ -25,28 +24,38 @@ class WarehouseGridSolver:
         for i in range(self._num_agents):
             agent_id = f"{i}"
             if observations[agent_id]["self_availability"][0] == 0:
-                self._agent_pickup_targets[i] = -1
-                target = observations[agent_id]["self_delivery_target"]
+                target_position = observations[agent_id]["self_delivery_target"]
             else:
-                if self._agent_pickup_targets[i] == -1:
-                    for j in range(self._num_requests):
-                        if j not in self._agent_pickup_targets:
-                            self._agent_pickup_targets[i] = j
-                            break
-                target = observations[agent_id]["requests"][self._agent_pickup_targets[i]][0:2]
+                target_position = self._find_closest(
+                    observations[agent_id]["self_position"], observations[agent_id]["requests"]
+                )
 
-            action_idxs = np.clip(target - observations[agent_id]["self_position"], -1, 1) + 1
+            step = np.clip(target_position - observations[agent_id]["self_position"], -1, 1)
+            future_position = observations[agent_id]["self_position"] + step
 
-            # Randomly rotate action to avoid stuck due to collision
-            if np.random.uniform() < ROTATE_ACTION_PROB:
-                action_idxs[0] = (action_idxs[0] + 1) % 3
-            if np.random.uniform() < ROTATE_ACTION_PROB:
-                action_idxs[1] = (action_idxs[1] + 1) % 3
+            # Rotate step direction if it conflicts with other agent's position to avoid stuc
+            # due to collision
+            if any(np.equal(future_position, observations[agent_id]["other_positions"]).all(1)):
+                step = self._rotate_step(step, STEP_ROTATION_DEG)
 
+            action_idxs = step + 1
             action = action_idxs[0] * 3 + action_idxs[1]
             action_dict[agent_id] = action
 
         return action_dict
+
+    def _find_closest(self, agent_position: np.ndarray, requests: np.ndarray) -> np.ndarray:
+        deltas = np.absolute(
+            np.repeat(agent_position[np.newaxis, :], self._num_requests, axis=0) - requests[:, 0:2],
+        )
+        distances = np.sum(deltas, axis=1)
+        return requests[np.argmin(distances)][0:2]
+
+    def _rotate_step(self, step: np.ndarray, angle_deg: float) -> np.ndarray:
+        theta = np.radians(angle_deg)
+        c, s = np.cos(theta), np.sin(theta)
+        R = np.array(((c, -s), (s, c)))
+        return np.rint(np.dot(R, step)).astype(np.int32)
 
 
 def main(env_variant: str) -> None:
