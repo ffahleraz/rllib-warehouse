@@ -43,7 +43,7 @@ EPSILON = 1e-3
 B2_VEL_ITERS: int = 10
 B2_POS_ITERS: int = 10
 
-AGENT_RADIUS: float = 0.4
+AGENT_RADIUS: float = 0.38
 BORDER_WIDTH: float = 1.0
 PIXELS_PER_METER: int = 30
 
@@ -62,6 +62,9 @@ DELIVERY_POINT_COLORS: List[Tuple[float, float, float]] = [
 ]
 BORDER_COLOR: Tuple[float, float, float] = (0.5, 0.5, 0.5)
 BACKGROUND_COLOR: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+
+ANIMATE_FRAMES_PER_STEP: int = 10
+ANIMATE_STEPS_PER_SECOND: float = 4.0
 
 
 class Warehouse(MultiAgentEnv):
@@ -96,7 +99,11 @@ class Warehouse(MultiAgentEnv):
             self._area_dimension + 2 * BORDER_WIDTH
         ) * PIXELS_PER_METER
 
-        # Specs
+        # Internal specs
+        self.animate_frames_per_step = ANIMATE_FRAMES_PER_STEP
+        self.animate_steps_per_second = ANIMATE_STEPS_PER_SECOND
+
+        # Gym specs
         self.reward_range = (0.0, 1.0)
         self.action_space = gym.spaces.Discrete(len(MOVES))
         self.observation_space = gym.spaces.Dict(
@@ -137,6 +144,10 @@ class Warehouse(MultiAgentEnv):
         self._pickup_point_positions = np.zeros((self._num_pickup_points, 2), dtype=np.int32)
         self._pickup_point_targets = np.zeros(self._num_pickup_points, dtype=np.int32)
         self._pickup_point_timers = np.zeros(self._num_pickup_points, dtype=np.int32)
+
+        self._prev_agent_positions = np.zeros((self._num_agents, 2), dtype=np.int32)
+        self._prev_agent_delivery_targets = np.zeros(self._num_agents, dtype=np.int32)
+        self._prev_pickup_point_targets = np.zeros(self._num_pickup_points, dtype=np.int32)
 
         self._episode_time: int = 0
 
@@ -179,9 +190,14 @@ class Warehouse(MultiAgentEnv):
         self._agent_positions = np.array(agent_positions, dtype=np.int32)
         self._agent_delivery_targets = np.full(self._num_agents, -1, dtype=np.int32)
 
+        self._prev_agent_positions = np.array(agent_positions, dtype=np.int32)
+        self._prev_agent_delivery_targets = np.full(self._num_agents, -1, dtype=np.int32)
+
         # Init waiting request states
         self._pickup_point_targets = np.full(self._num_pickup_points, -1, dtype=np.int32)
         self._pickup_point_timers = np.full(self._num_pickup_points, -1, dtype=np.int32)
+
+        self._prev_pickup_point_targets = np.full(self._num_pickup_points, -1, dtype=np.int32)
 
         new_waiting_pickup_points = np.random.choice(
             self._num_pickup_points, self._num_requests, replace=False,
@@ -226,6 +242,11 @@ class Warehouse(MultiAgentEnv):
         Dict[str, gym.spaces.Dict], Dict[str, float], Dict[str, bool], Dict[str, Dict[str, str]],
     ]:
         self._episode_time += 1
+
+        # Save prev states
+        self._prev_agent_positions = np.copy(self._agent_positions)
+        self._prev_agent_delivery_targets = np.copy(self._agent_delivery_targets)
+        self._prev_pickup_point_targets = np.copy(self._pickup_point_targets)
 
         # Update agent positions
         occupancy_grid = np.zeros((self._area_dimension, self._area_dimension), dtype=np.bool)
@@ -369,11 +390,45 @@ class Warehouse(MultiAgentEnv):
 
         return observations, rewards, dones, {f"{i}": {} for i in range(self._num_agents)}
 
-    def render(self, mode: str = "human") -> None:
-        from gym.envs.classic_control import rendering
-
+    def render(self, mode: str = "human", animate: bool = False) -> None:
         if mode != "human":
             super(Warehouse, self).render(mode=mode)
+
+        if animate:
+            for i in range(self.animate_frames_per_step):
+                start_time = time.time()
+
+                agent_positions = (
+                    self._prev_agent_positions
+                    + (self._agent_positions - self._prev_agent_positions)
+                    / self.animate_frames_per_step
+                    * i
+                )
+                self._render_one_frame(
+                    agent_positions,
+                    self._prev_agent_delivery_targets,
+                    self._prev_pickup_point_targets,
+                )
+
+                elapsed_time = time.time() - start_time
+                expected_frame_time = 1.0 / (
+                    self.animate_steps_per_second * self.animate_frames_per_step
+                )
+                if elapsed_time < expected_frame_time:
+                    time.sleep(expected_frame_time - elapsed_time)
+
+        else:
+            self._render_one_frame(
+                self._agent_positions, self._agent_delivery_targets, self._pickup_point_targets
+            )
+
+    def _render_one_frame(
+        self,
+        agent_positions: np.ndarray,
+        agent_delivery_targets: np.ndarray,
+        pickup_point_targets: np.ndarray,
+    ) -> None:
+        from gym.envs.classic_control import rendering
 
         if self._viewer is None:
             self._viewer = rendering.Viewer(
@@ -415,9 +470,7 @@ class Warehouse(MultiAgentEnv):
         # Pickup points
         for idx, point in enumerate(self._pickup_point_positions):
             color = (
-                PICKUP_POINT_COLORS[1]
-                if self._pickup_point_targets[idx] > -1
-                else PICKUP_POINT_COLORS[0]
+                PICKUP_POINT_COLORS[1] if pickup_point_targets[idx] > -1 else PICKUP_POINT_COLORS[0]
             )
             self._viewer.draw_polygon(
                 [
@@ -445,7 +498,7 @@ class Warehouse(MultiAgentEnv):
         for idx, point in enumerate(self._delivery_point_positions):
             color = (
                 DELIVERY_POINT_COLORS[1]
-                if np.isin(idx, self._agent_delivery_targets)
+                if np.isin(idx, agent_delivery_targets)
                 else DELIVERY_POINT_COLORS[0]
             )
             self._viewer.draw_polygon(
@@ -492,17 +545,20 @@ class Warehouse(MultiAgentEnv):
             )
 
         # Agents
-        for idx, point in enumerate(self._agent_positions):
+        for idx, point in enumerate(agent_positions):
             transform = (
                 point.astype(np.float32) + np.array([0.5, 0.5], dtype=np.float32) + BORDER_WIDTH
             )
+
             self._viewer.draw_circle(
                 AGENT_RADIUS * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
             ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
+
             self._viewer.draw_circle(
                 AGENT_RADIUS * 3 / 4 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
             ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
-            if self._agent_delivery_targets[idx] > -1:
+
+            if agent_delivery_targets[idx] > -1:
                 self._viewer.draw_circle(
                     AGENT_RADIUS / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[2]
                 ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))

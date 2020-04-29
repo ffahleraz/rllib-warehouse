@@ -8,7 +8,7 @@ from warehouse import Warehouse, WarehouseSmall, WarehouseMedium, WarehouseLarge
 from solvers import WarehouseSolver, WarehouseRandomSolver, WarehouseGreedySolver
 
 
-def main(solver_type: str, env_variant: str) -> None:
+def main(solver_type: str, env_variant: str, animate_rendering: bool) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     think_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
@@ -35,9 +35,16 @@ def main(solver_type: str, env_variant: str) -> None:
     done = False
     step_count = 0
     while not done:
-        start_time = time.time()
-        env.render()
-        render_time_buffer.append(1.0 / (time.time() - start_time))
+        if animate_rendering:
+            start_time = time.time()
+            env.render(animate=True)
+            render_time_buffer.append(
+                (1.0 / (time.time() - start_time)) * env.animate_frames_per_step
+            )
+        else:
+            start_time = time.time()
+            env.render()
+            render_time_buffer.append(1.0 / (time.time() - start_time))
 
         start_time = time.time()
         action_dict = solver.compute_action(observations)
@@ -55,9 +62,14 @@ def main(solver_type: str, env_variant: str) -> None:
 
         print(f"\n=== Step {step_count} ===")
         print("Rewards:", *acc_rewards)
-        print(
-            f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, think avg FPS: {sum(think_time_buffer) / len(think_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
-        )
+        if animate_rendering:
+            print(
+                f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, think avg FPS: {sum(think_time_buffer) / len(think_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)} / {env.animate_frames_per_step * env.animate_steps_per_second}"
+            )
+        else:
+            print(
+                f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, think avg FPS: {sum(think_time_buffer) / len(think_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
+            )
 
         step_count += 1
 
@@ -68,5 +80,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "env_variant", type=str, choices=["small", "medium", "large"], help="environment variant"
     )
+    parser.add_argument(
+        "--animate", "-a", action="store_true", help="whether to animate env rendering"
+    )
     args = parser.parse_args()
-    main(solver_type=args.solver_type, env_variant=args.env_variant)
+    main(solver_type=args.solver_type, env_variant=args.env_variant, animate_rendering=args.animate)
