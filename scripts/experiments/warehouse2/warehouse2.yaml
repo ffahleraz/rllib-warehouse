@@ -18,13 +18,13 @@ warehouse-2-sac:
                 - 256
                 - 256
                 - 64
-        horizon: 400
-        soft_horizon: False
+        horizon: 2000
+        soft_horizon: True
         no_done_at_end: True
         normalize_actions: False
-        timesteps_per_iteration: 400
-        learning_starts: 16000
-        buffer_size: 240000
+        timesteps_per_iteration: 2000
+        learning_starts: 20000
+        buffer_size: 400000
         prioritized_replay: False
         target_network_update_freq: 1
         num_gpus: 1
