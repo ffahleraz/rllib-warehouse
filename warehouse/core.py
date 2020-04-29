@@ -6,6 +6,9 @@ import gym
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 
+__all__ = ["Warehouse"]
+
+
 # Engineering notes:
 #   - Each agent is identified by int[0, NUM_AGENTS) in string type.
 #   - Zero coordinate for the env is on the bottom left, this is then transformed to
@@ -71,7 +74,6 @@ class Warehouse(MultiAgentEnv):
         num_agents: int,
         num_requests: int,
         area_dimension: int,
-        agent_init_positions: List[List[int]],
         pickup_racks_arrangement: List[int],
         episode_duration: int,
         pickup_wait_duration: int,
@@ -80,7 +82,6 @@ class Warehouse(MultiAgentEnv):
 
         # Constants
         self._area_dimension: int = area_dimension
-        self._agent_init_positions: List[List[int]] = agent_init_positions
         self._pickup_racks_arrangement: List[int] = pickup_racks_arrangement
 
         self._num_agents: int = num_agents
@@ -142,20 +143,11 @@ class Warehouse(MultiAgentEnv):
     def reset(self) -> Dict[str, gym.spaces.Dict]:
         self._episode_time = 0
 
-        # Init agents
-        agent_positions: List[List[int]] = []
-        for x, y in self._agent_init_positions:
-            agent_positions.append([x, y])
-        self._agent_positions = np.array(agent_positions, dtype=np.int32)
-        self._agent_delivery_targets = np.full(self._num_agents, -1, dtype=np.int32)
-
         # Init pickup point positions
         pickup_point_positions = []
         for x in self._pickup_racks_arrangement:
             for y in self._pickup_racks_arrangement:
-                pickup_point_positions.extend(
-                    [[x - 1, y - 1], [x, y - 1], [x - 1, y], [x, y],]
-                )
+                pickup_point_positions.extend([(x - 1, y - 1), (x, y - 1), (x - 1, y), (x, y)])
         self._pickup_point_positions = np.array(pickup_point_positions, dtype=np.int32)
 
         # Init delivery point positions
@@ -163,13 +155,29 @@ class Warehouse(MultiAgentEnv):
         for val in range(2, int(self._area_dimension) - 2):
             delivery_point_positions.extend(
                 [
-                    [val, 0],
-                    [0, val],
-                    [val, self._area_dimension - 1],
-                    [self._area_dimension - 1, val],
+                    (val, 0),
+                    (0, val),
+                    (val, self._area_dimension - 1),
+                    (self._area_dimension - 1, val),
                 ]
             )
         self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.int32)
+
+        # Init agents
+        agent_positions = []
+        for _ in range(self._num_agents):
+            valid = False
+            while not valid:
+                position = (
+                    np.random.randint(1, self._area_dimension - 1),
+                    np.random.randint(1, self._area_dimension - 1),
+                )
+                valid = position not in pickup_point_positions
+                if valid:
+                    agent_positions.append(position)
+
+        self._agent_positions = np.array(agent_positions, dtype=np.int32)
+        self._agent_delivery_targets = np.full(self._num_agents, -1, dtype=np.int32)
 
         # Init waiting request states
         self._pickup_point_targets = np.full(self._num_pickup_points, -1, dtype=np.int32)
