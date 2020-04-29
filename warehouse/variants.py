@@ -18,8 +18,8 @@ class Warehouse2(Warehouse):
         super(Warehouse2, self).__init__(
             num_agents=2,
             num_requests=2,
-            area_dimension=20,
-            pickup_racks_arrangement=[4, 8, 12, 16],
+            area_dimension=16,
+            pickup_racks_arrangement=[4, 8, 12],
             episode_duration=400,
             pickup_wait_duration=40,
         )
@@ -30,8 +30,8 @@ class Warehouse4(Warehouse):
         super(Warehouse4, self).__init__(
             num_agents=4,
             num_requests=4,
-            area_dimension=20,
-            pickup_racks_arrangement=[4, 8, 12, 16],
+            area_dimension=16,
+            pickup_racks_arrangement=[4, 8, 12],
             episode_duration=400,
             pickup_wait_duration=40,
         )
@@ -42,8 +42,8 @@ class Warehouse6(Warehouse):
         super(Warehouse6, self).__init__(
             num_agents=6,
             num_requests=6,
-            area_dimension=20,
-            pickup_racks_arrangement=[4, 8, 12, 16],
+            area_dimension=16,
+            pickup_racks_arrangement=[4, 8, 12],
             episode_duration=400,
             pickup_wait_duration=40,
         )
@@ -54,8 +54,8 @@ class Warehouse8(Warehouse):
         super(Warehouse8, self).__init__(
             num_agents=8,
             num_requests=8,
-            area_dimension=20,
-            pickup_racks_arrangement=[4, 8, 12, 16],
+            area_dimension=16,
+            pickup_racks_arrangement=[4, 8, 12],
             episode_duration=400,
             pickup_wait_duration=40,
         )

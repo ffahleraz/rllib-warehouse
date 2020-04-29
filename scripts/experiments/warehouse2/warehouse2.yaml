@@ -23,7 +23,7 @@ warehouse-2-sac:
         no_done_at_end: True
         normalize_actions: False
         timesteps_per_iteration: 400
-        learning_starts: 8000
+        learning_starts: 16000
         buffer_size: 240000
         prioritized_replay: False
         target_network_update_freq: 1
