@@ -7,24 +7,28 @@ from ray.tune.registry import register_env
 from ray.tune.tune import run_experiments
 
 from warehouse import (
-    WarehouseSmall,
-    WarehouseMedium,
-    WarehouseLarge,
-    WarehouseHardSmall,
-    WarehouseHardMedium,
-    WarehouseHardLarge,
+    Warehouse2,
+    Warehouse4,
+    Warehouse6,
+    Warehouse8,
+    Warehouse10,
+    Warehouse12,
+    Warehouse14,
+    Warehouse16,
 )
 
 
 def main(config_path: str) -> None:
     ray.init()
 
-    register_env("WarehouseSmall-v0", lambda _: WarehouseSmall())
-    register_env("WarehouseMedium-v0", lambda _: WarehouseMedium())
-    register_env("WarehouseLarge-v0", lambda _: WarehouseLarge())
-    register_env("WarehouseHardSmall-v0", lambda _: WarehouseHardSmall())
-    register_env("WarehouseHardMedium-v0", lambda _: WarehouseHardMedium())
-    register_env("WarehouseHardLarge-v0", lambda _: WarehouseHardLarge())
+    register_env("Warehouse2-v0", lambda _: Warehouse2())
+    register_env("Warehouse4-v0", lambda _: Warehouse4())
+    register_env("Warehouse6-v0", lambda _: Warehouse6())
+    register_env("Warehouse8-v0", lambda _: Warehouse8())
+    register_env("Warehouse10-v0", lambda _: Warehouse10())
+    register_env("Warehouse12-v0", lambda _: Warehouse12())
+    register_env("Warehouse14-v0", lambda _: Warehouse14())
+    register_env("Warehouse16-v0", lambda _: Warehouse16())
 
     with open(args.config_path) as config_file:
         experiments = yaml.safe_load(config_file)

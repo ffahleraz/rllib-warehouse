@@ -1,0 +1,33 @@
+warehouse-4-sac-1:
+    env: Warehouse4-v0
+    run: SAC
+    stop:
+        training_iteration: 3000
+    checkpoint_freq: 100
+    checkpoint_at_end: True
+    config:
+        Q_model: 
+            hidden_activation: relu
+            hidden_layer_sizes:
+                - 512
+                - 256
+                - 256
+                - 64
+        policy_model:
+            hidden_activation: relu
+            hidden_layer_sizes: 
+                - 512
+                - 256
+                - 256
+                - 64
+        horizon: 400
+        soft_horizon: False
+        no_done_at_end: True
+        normalize_actions: False
+        timesteps_per_iteration: 400
+        learning_starts: 8000
+        buffer_size: 240000
+        prioritized_replay: False
+        target_network_update_freq: 1
+        num_gpus: 1
+        num_workers: 2

@@ -1,31 +1,45 @@
 import time
 import argparse
-from typing import Deque
+from typing import Dict, Deque
 from collections import deque
 
-from warehouse import Warehouse, WarehouseSmall, WarehouseMedium, WarehouseLarge
+from warehouse import (
+    Warehouse,
+    Warehouse2,
+    Warehouse4,
+    Warehouse6,
+    Warehouse8,
+    Warehouse10,
+    Warehouse12,
+    Warehouse14,
+    Warehouse16,
+)
 
 from solvers import WarehouseSolver, WarehouseRandomSolver, WarehouseGreedySolver
 
 
-def main(solver_type: str, env_variant: str, animate_rendering: bool) -> None:
+def main(solver_type: str, num_agents: int, animate_rendering: bool) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     think_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env: Warehouse
-    if env_variant == "small":
-        env = WarehouseSmall()
-    elif env_variant == "medium":
-        env = WarehouseMedium()
-    elif env_variant == "large":
-        env = WarehouseLarge()
+    env_map: Dict[int, Warehouse] = {
+        2: Warehouse2(),
+        4: Warehouse4(),
+        6: Warehouse6(),
+        8: Warehouse8(),
+        10: Warehouse10(),
+        12: Warehouse12(),
+        14: Warehouse14(),
+        16: Warehouse16(),
+    }
+    env = env_map[num_agents]
 
-    solver: WarehouseSolver
-    if solver_type == "random":
-        solver = WarehouseRandomSolver(action_space=env.action_space)
-    elif solver_type == "greedy":
-        solver = WarehouseGreedySolver(num_agents=env.num_agents, num_requests=env.num_requests)
+    solver_map: Dict[str, WarehouseSolver] = {
+        "random": WarehouseRandomSolver(action_space=env.action_space),
+        "greedy": WarehouseGreedySolver(num_agents=env.num_agents, num_requests=env.num_requests),
+    }
+    solver = solver_map[solver_type]
 
     observations = env.reset()
     for _, observation in observations.items():
@@ -78,10 +92,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("solver_type", type=str, choices=["random", "greedy"], help="solver type")
     parser.add_argument(
-        "env_variant", type=str, choices=["small", "medium", "large"], help="environment variant"
+        "num_agents", type=int, choices=[2, 4, 6, 8, 10, 12, 14, 16], help="number of agents"
     )
     parser.add_argument(
         "--animate", "-a", action="store_true", help="whether to animate env rendering"
     )
     args = parser.parse_args()
-    main(solver_type=args.solver_type, env_variant=args.env_variant, animate_rendering=args.animate)
+    main(solver_type=args.solver_type, num_agents=args.num_agents, animate_rendering=args.animate)

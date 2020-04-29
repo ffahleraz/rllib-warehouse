@@ -1,5 +1,6 @@
 import argparse
 import time
+from typing import Dict, Type
 
 import json
 import glob
@@ -10,12 +11,14 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 
 from warehouse import (
-    WarehouseSmall,
-    WarehouseMedium,
-    WarehouseLarge,
-    WarehouseHardSmall,
-    WarehouseHardMedium,
-    WarehouseHardLarge,
+    Warehouse2,
+    Warehouse4,
+    Warehouse6,
+    Warehouse8,
+    Warehouse10,
+    Warehouse12,
+    Warehouse14,
+    Warehouse16,
 )
 
 
@@ -24,13 +27,15 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
 
     params = json.load(open(os.path.join(trial_dir, "params.json"), "rb"))
 
-    env_map = {
-        "WarehouseSmall-v0": WarehouseSmall,
-        "WarehouseMedium-v0": WarehouseMedium,
-        "WarehouseLarge-v0": WarehouseLarge,
-        "WarehouseHardSmall-v0": WarehouseHardSmall,
-        "WarehouseHardMedium-v0": WarehouseHardMedium,
-        "WarehouseHardLarge-v0": WarehouseHardLarge,
+    env_map: Dict[str, Type] = {
+        "Warehouse2-v0": Warehouse2,
+        "Warehouse4-v0": Warehouse4,
+        "Warehouse6-v0": Warehouse6,
+        "Warehouse8-v0": Warehouse8,
+        "Warehouse10-v0": Warehouse10,
+        "Warehouse12-v0": Warehouse12,
+        "Warehouse14-v0": Warehouse14,
+        "Warehouse16-v0": Warehouse16,
     }
     for key, val in env_map.items():
         register_env(key, lambda _: val())

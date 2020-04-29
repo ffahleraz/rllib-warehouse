@@ -100,6 +100,8 @@ class Warehouse(MultiAgentEnv):
         ) * PIXELS_PER_METER
 
         # Internal specs
+        self.num_agents = self._num_agents
+        self.num_requests = self._num_requests
         self.animate_frames_per_step = ANIMATE_FRAMES_PER_STEP
         self.animate_steps_per_second = ANIMATE_STEPS_PER_SECOND
 
