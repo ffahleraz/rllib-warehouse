@@ -1,5 +1,5 @@
 import time
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Set
 
 import numpy as np
 import gym
@@ -228,23 +228,30 @@ class Warehouse(MultiAgentEnv):
         self._episode_time += 1
 
         # Update agent positions
+        occupancy_grid = np.zeros((self._area_dimension, self._area_dimension), dtype=np.bool)
+        occupancy_grid[self._agent_positions[:0], self._agent_positions[:1]] = True
+        invalid_moves: Set[Tuple[int, int, int, int]] = set([])
+
         for key, action in action_dict.items():
             idx = int(key)
-            x = self._agent_positions[idx][0] + MOVES[action][0]
-            y = self._agent_positions[idx][1] + MOVES[action][1]
+            px, py = self._agent_positions[idx][0], self._agent_positions[idx][1]
+            x, y = px + MOVES[action][0], py + MOVES[action][1]
 
             if not (0 <= x < self._area_dimension):
-                x = self._agent_positions[idx][0]
+                x = px
             if not (0 <= y < self._area_dimension):
-                y = self._agent_positions[idx][1]
+                y = py
 
-            collide = False
-            for xi, yi in np.delete(self._agent_positions, idx, axis=0):
-                if xi == x and yi == y:
-                    collide = True
-                    break
+            if not occupancy_grid[x][y] and (px, py, x, y) not in invalid_moves:
+                occupancy_grid[px][py] = False
+                occupancy_grid[x][y] = True
 
-            if not collide:
+                # Prevent swap and cross tunnelling
+                invalid_moves.add((x, y, px, py))
+                if x != px and y != py:
+                    invalid_moves.add((x, py, px, y))
+                    invalid_moves.add((px, y, x, py))
+
                 self._agent_positions[idx][0] = x
                 self._agent_positions[idx][1] = y
 
