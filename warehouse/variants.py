@@ -1,4 +1,4 @@
-from warehouse.default.core import Warehouse
+from warehouse.core import Warehouse
 
 
 __all__ = ["WarehouseSmall", "WarehouseMedium", "WarehouseLarge"]

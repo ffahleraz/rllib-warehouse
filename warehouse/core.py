@@ -4,31 +4,15 @@ from typing import List, Dict, Tuple
 import numpy as np
 import gym
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
-import Box2D
-from Box2D.b2 import (
-    world,
-    circleShape,
-    polygonShape,
-    dynamicBody,
-)
 
 
 # Engineering notes:
 #   - Each agent is identified by int[0, NUM_AGENTS) in string type.
 #   - Zero coordinate for the env is on the bottom left, this is then transformed to
 #     top left for rendering.
+#   - Anchor points for each objects (agents, pickup & delivery points) is on the bottom left.
 #   - Environment layout:
 #       |B|x| | |x|x| | |x|x| | |x|x| | |x|B|
-#   - States:
-#       - self._agent_delivery_targets = np.zeros(NUM_AGENTS, dtype=np.int32):
-#           - -1: not delivering
-#           - [0, NUM_DELIVERY_POINTS): target delivery point idx
-#       - self._pickup_point_targets = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
-#           - -1: not waiting (inactive)
-#           - [0, NUM_DELIVERY_POINTS): target delivery point idx
-#       - self._pickup_point_timers = np.zeros(NUM_PICKUP_POINTS, dtype=np.int32):
-#           - -1.0: not waiting (inactive)
-#           - [0.0, oo): elapsed time since active
 #   - Game mechanism:
 #       - There will always be NUM_REQUESTS requests for pickups in which all the pickup points are
 #         unique but the delivery points may be not
@@ -38,13 +22,11 @@ from Box2D.b2 import (
 #         point that is already being served)
 #   - Assumptions:
 #       - NUM_REQUESTS >= NUM_AGENTS
-#   - Params:
-#       - WORLD is the viewport
-#       - WORLD_DIMENSION is the dimension of WORLD in meters
+#   - Frame of references:
 #       - AREA is the playable area (excluding borders)
-#       - AREA_DIMENSION is the dimension of AREA in meters
-#       - Internal calculations & rendering are in the frame of WORLD, while all exposed APIs (init
-#         args & observations) are in the frame of AREA
+#       - All positions are in the frame of AREA
+#       - AREA_DIMENSION is the dimension AREA in meters
+
 
 # Environment
 MOVES: List[List[int]] = [[x, y] for x in [-1, 0, 1] for y in [-1, 0, 1]]
@@ -52,16 +34,14 @@ MOVES: List[List[int]] = [[x, y] for x in [-1, 0, 1] for y in [-1, 0, 1]]
 PICKUP_REWARD: float = 1.0
 DELIVERY_REWARD: float = 1.0
 
-AGENT_VELOCITY: float = 1.0
-AGENT_RADIUS: float = 0.4
-BORDER_WIDTH: float = 1.0
-PICKUP_POSITION_TOLERANCE: float = 0.4
-DELIVERY_POSITION_TOLERANCE: float = 0.4
-FRAMES_PER_SECOND: int = 10
+EPSILON = 1e-3
 
 # Rendering
 B2_VEL_ITERS: int = 10
 B2_POS_ITERS: int = 10
+
+AGENT_RADIUS: float = 0.4
+BORDER_WIDTH: float = 1.0
 PIXELS_PER_METER: int = 30
 
 AGENT_COLORS: List[Tuple[float, float, float]] = [
@@ -69,7 +49,6 @@ AGENT_COLORS: List[Tuple[float, float, float]] = [
     (0.8, 0.8, 0.8),
     (0.0, 0.0, 1.0),
 ]
-BORDER_COLOR: Tuple[float, float, float] = (0.5, 0.5, 0.5)
 PICKUP_POINT_COLORS: List[Tuple[float, float, float]] = [
     (0.8, 0.8, 0.8),
     (0.0, 0.0, 1.0),
@@ -78,45 +57,43 @@ DELIVERY_POINT_COLORS: List[Tuple[float, float, float]] = [
     (0.8, 0.8, 0.8),
     (0.0, 0.0, 1.0),
 ]
+BORDER_COLOR: Tuple[float, float, float] = (0.5, 0.5, 0.5)
+BACKGROUND_COLOR: Tuple[float, float, float] = (1.0, 1.0, 1.0)
 
 
-class WarehouseHard(MultiAgentEnv):
+class Warehouse(MultiAgentEnv):
     metadata = {
         "render.modes": ["human"],
-        "video.frames_per_second": FRAMES_PER_SECOND,
     }
 
     def __init__(
         self,
         num_agents: int,
         num_requests: int,
-        area_dimension: float,
-        agent_init_positions: List[List[float]],
-        pickup_racks_arrangement: List[float],
-        episode_duration_s: int,
-        pickup_wait_duration_s: int,
+        area_dimension: int,
+        agent_init_positions: List[List[int]],
+        pickup_racks_arrangement: List[int],
+        episode_duration: int,
+        pickup_wait_duration: int,
     ) -> None:
-        super(WarehouseHard, self).__init__()
+        super(Warehouse, self).__init__()
 
         # Constants
-        self._area_dimension: float = area_dimension
-        self._world_dimension: float = area_dimension + 2 * BORDER_WIDTH
-        self._agent_init_positions: List[List[float]] = [
-            [pos[0] + BORDER_WIDTH, pos[1] + BORDER_WIDTH] for pos in agent_init_positions
-        ]
-        self._pickup_racks_arrangement: List[float] = [
-            val + BORDER_WIDTH for val in pickup_racks_arrangement
-        ]
+        self._area_dimension: int = area_dimension
+        self._agent_init_positions: List[List[int]] = agent_init_positions
+        self._pickup_racks_arrangement: List[int] = pickup_racks_arrangement
 
         self._num_agents: int = num_agents
         self._num_pickup_points: int = 4 * len(pickup_racks_arrangement) ** 2
         self._num_delivery_points: int = 4 * int(self._area_dimension - 4)
         self._num_requests: int = num_requests
 
-        self._episode_duration: int = episode_duration_s * FRAMES_PER_SECOND
-        self._pickup_wait_duration: int = pickup_wait_duration_s * FRAMES_PER_SECOND
+        self._episode_duration: int = episode_duration
+        self._pickup_wait_duration: int = pickup_wait_duration
 
-        self._viewport_dimension_px: int = int(self._world_dimension) * PIXELS_PER_METER
+        self._viewport_dimension_PX: int = int(
+            self._area_dimension + 2 * BORDER_WIDTH
+        ) * PIXELS_PER_METER
 
         # Specs
         self.reward_range = (0.0, 1.0)
@@ -124,30 +101,27 @@ class WarehouseHard(MultiAgentEnv):
         self.observation_space = gym.spaces.Dict(
             {
                 "self_position": gym.spaces.Box(
-                    low=0.0, high=self._area_dimension, shape=(2,), dtype=np.float32,
+                    low=0, high=self._area_dimension, shape=(2,), dtype=np.int32,
                 ),
                 "self_availability": gym.spaces.MultiBinary(1),
                 "self_delivery_target": gym.spaces.Box(
-                    low=0.0, high=self._area_dimension, shape=(2,), dtype=np.float32,
+                    low=0, high=self._area_dimension, shape=(2,), dtype=np.int32,
                 ),
                 "other_positions": gym.spaces.Box(
-                    low=0.0,
+                    low=0,
                     high=self._area_dimension,
                     shape=(self._num_agents - 1, 2),
-                    dtype=np.float32,
+                    dtype=np.int32,
                 ),
                 "other_availabilities": gym.spaces.MultiBinary(self._num_agents - 1),
                 "other_delivery_targets": gym.spaces.Box(
-                    low=0.0,
+                    low=0,
                     high=self._area_dimension,
                     shape=(self._num_agents - 1, 2),
-                    dtype=np.float32,
+                    dtype=np.int32,
                 ),
                 "requests": gym.spaces.Box(
-                    low=0.0,
-                    high=self._area_dimension,
-                    shape=(self._num_requests, 4),
-                    dtype=np.float32,
+                    low=0, high=self._area_dimension, shape=(self._num_requests, 4), dtype=np.int32,
                 ),
             }
         )
@@ -155,15 +129,11 @@ class WarehouseHard(MultiAgentEnv):
         # States
         self._viewer: gym.Viewer = None
 
-        self._world = world(gravity=(0, 0), doSleep=False)
-        self._agent_bodies: List[dynamicBody] = []
-        self._border_bodies: List[dynamicBody] = []
-
-        self._agent_positions = np.zeros((self._num_agents, 2), dtype=np.float32)
+        self._agent_positions = np.zeros((self._num_agents, 2), dtype=np.int32)
         self._agent_delivery_targets = np.zeros(self._num_agents, dtype=np.int32)
 
-        self._delivery_point_positions = np.zeros((self._num_delivery_points, 2), dtype=np.float32)
-        self._pickup_point_positions = np.zeros((self._num_pickup_points, 2), dtype=np.float32)
+        self._delivery_point_positions = np.zeros((self._num_delivery_points, 2), dtype=np.int32)
+        self._pickup_point_positions = np.zeros((self._num_pickup_points, 2), dtype=np.int32)
         self._pickup_point_targets = np.zeros(self._num_pickup_points, dtype=np.int32)
         self._pickup_point_timers = np.zeros(self._num_pickup_points, dtype=np.int32)
 
@@ -173,63 +143,33 @@ class WarehouseHard(MultiAgentEnv):
         self._episode_time = 0
 
         # Init agents
-        agent_positions: List[List[float]] = []
-        self._agent_bodies = []
+        agent_positions: List[List[int]] = []
         for x, y in self._agent_init_positions:
-            body = self._world.CreateDynamicBody(position=(x, y))
-            _ = body.CreateCircleFixture(radius=AGENT_RADIUS, density=1.0, friction=0.0)
-            self._agent_bodies.append(body)
             agent_positions.append([x, y])
-
-        self._agent_positions = np.array(agent_positions, dtype=np.float32)
+        self._agent_positions = np.array(agent_positions, dtype=np.int32)
         self._agent_delivery_targets = np.full(self._num_agents, -1, dtype=np.int32)
-
-        # Init borders
-        self._border_bodies = [
-            self._world.CreateStaticBody(
-                position=(self._world_dimension / 2, BORDER_WIDTH / 2),
-                shapes=polygonShape(box=(self._world_dimension / 2, BORDER_WIDTH / 2)),
-            ),
-            self._world.CreateStaticBody(
-                position=(self._world_dimension / 2, self._world_dimension - BORDER_WIDTH / 2,),
-                shapes=polygonShape(box=(self._world_dimension / 2, BORDER_WIDTH / 2)),
-            ),
-            self._world.CreateStaticBody(
-                position=(BORDER_WIDTH / 2, self._world_dimension / 2,),
-                shapes=polygonShape(box=(BORDER_WIDTH / 2, self._world_dimension / 2)),
-            ),
-            self._world.CreateStaticBody(
-                position=(self._world_dimension - BORDER_WIDTH / 2, self._world_dimension / 2,),
-                shapes=polygonShape(box=(BORDER_WIDTH / 2, self._world_dimension / 2)),
-            ),
-        ]
 
         # Init pickup point positions
         pickup_point_positions = []
         for x in self._pickup_racks_arrangement:
             for y in self._pickup_racks_arrangement:
                 pickup_point_positions.extend(
-                    [
-                        [x - 0.5, y - 0.5],
-                        [x + 0.5, y - 0.5],
-                        [x + 0.5, y + 0.5],
-                        [x - 0.5, y + 0.5],
-                    ]
+                    [[x - 1, y - 1], [x, y - 1], [x - 1, y], [x, y],]
                 )
-        self._pickup_point_positions = np.array(pickup_point_positions, dtype=np.float32)
+        self._pickup_point_positions = np.array(pickup_point_positions, dtype=np.int32)
 
         # Init delivery point positions
         delivery_point_positions = []
         for val in range(2, int(self._area_dimension) - 2):
             delivery_point_positions.extend(
                 [
-                    [BORDER_WIDTH + val + 0.5, BORDER_WIDTH + 0.5],
-                    [BORDER_WIDTH + val + 0.5, self._world_dimension - BORDER_WIDTH - 0.5,],
-                    [BORDER_WIDTH + 0.5, BORDER_WIDTH + val + 0.5],
-                    [self._world_dimension - BORDER_WIDTH - 0.5, BORDER_WIDTH + val + 0.5,],
+                    [val, 0],
+                    [0, val],
+                    [val, self._area_dimension - 1],
+                    [self._area_dimension - 1, val],
                 ]
             )
-        self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.float32)
+        self._delivery_point_positions = np.array(delivery_point_positions, dtype=np.int32)
 
         # Init waiting request states
         self._pickup_point_targets = np.full(self._num_pickup_points, -1, dtype=np.int32)
@@ -246,7 +186,7 @@ class WarehouseHard(MultiAgentEnv):
         # Compute observations
         agent_availabilities = np.ones(self._num_agents, dtype=np.int8)
         agent_delivery_target_positions = np.full(
-            (self._num_agents, 2), self._world_dimension / 2.0, dtype=np.float32
+            (self._num_agents, 2), self._area_dimension // 2, dtype=np.int32
         )
 
         waiting_pickup_points_mask = self._pickup_point_targets > -1
@@ -259,17 +199,15 @@ class WarehouseHard(MultiAgentEnv):
                 ],
             ),
         )
-
         return {
             str(i): {
-                "self_position": self._agent_positions[i] - BORDER_WIDTH,
+                "self_position": self._agent_positions[i],
                 "self_availability": agent_availabilities[np.newaxis, i],
-                "self_delivery_target": agent_delivery_target_positions[i] - BORDER_WIDTH,
-                "other_positions": np.delete(self._agent_positions, i, axis=0) - BORDER_WIDTH,
+                "self_delivery_target": agent_delivery_target_positions[i],
+                "other_positions": np.delete(self._agent_positions, i, axis=0),
                 "other_availabilities": np.delete(agent_availabilities, i, axis=0),
-                "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0)
-                - BORDER_WIDTH,
-                "requests": requests - BORDER_WIDTH,
+                "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0),
+                "requests": requests,
             }
             for i in range(self._num_agents)
         }
@@ -281,19 +219,26 @@ class WarehouseHard(MultiAgentEnv):
     ]:
         self._episode_time += 1
 
-        # Update agent velocities
-        for key, action in action_dict.items():
-            vx = MOVES[action][0] * AGENT_VELOCITY
-            vy = MOVES[action][1] * AGENT_VELOCITY
-            self._agent_bodies[int(key)].linearVelocity = [vx, vy]
-
-        # Step simulation
-        self._world.Step(1.0 / FRAMES_PER_SECOND, 10, 10)
-
         # Update agent positions
-        for idx, body in enumerate(self._agent_bodies):
-            self._agent_positions[idx][0] = body.position[0]
-            self._agent_positions[idx][1] = body.position[1]
+        for key, action in action_dict.items():
+            idx = int(key)
+            x = self._agent_positions[idx][0] + MOVES[action][0]
+            y = self._agent_positions[idx][1] + MOVES[action][1]
+
+            if not (0 <= x < self._area_dimension):
+                x = self._agent_positions[idx][0]
+            if not (0 <= y < self._area_dimension):
+                y = self._agent_positions[idx][1]
+
+            collide = False
+            for xi, yi in np.delete(self._agent_positions, idx, axis=0):
+                if xi == x and yi == y:
+                    collide = True
+                    break
+
+            if not collide:
+                self._agent_positions[idx][0] = x
+                self._agent_positions[idx][1] = y
 
         # Remove expired pickup points
         self._pickup_point_timers[self._pickup_point_targets > -1] -= 1
@@ -303,13 +248,15 @@ class WarehouseHard(MultiAgentEnv):
 
         # Detect pickups
         agent_and_pickup_point_distances = np.linalg.norm(
-            np.repeat(self._pickup_point_positions[np.newaxis, :, :], self._num_agents, axis=0)
-            - np.repeat(self._agent_positions[:, np.newaxis, :], self._num_pickup_points, axis=1),
+            (
+                np.repeat(self._pickup_point_positions[np.newaxis, :, :], self._num_agents, axis=0)
+                - np.repeat(
+                    self._agent_positions[:, np.newaxis, :], self._num_pickup_points, axis=1
+                )
+            ).astype(np.float32),
             axis=2,
         )
-        agent_and_pickup_point_collisions = (
-            agent_and_pickup_point_distances < PICKUP_POSITION_TOLERANCE
-        )
+        agent_and_pickup_point_collisions = agent_and_pickup_point_distances < EPSILON
         new_served_pickup_point_candidates = np.argmax(agent_and_pickup_point_collisions, axis=1)
         new_delivering_agents_mask = (
             np.max(agent_and_pickup_point_collisions, axis=1)
@@ -352,7 +299,7 @@ class WarehouseHard(MultiAgentEnv):
                 - self._agent_positions[delivering_agents],
                 axis=1,
             )
-            < DELIVERY_POSITION_TOLERANCE
+            < EPSILON
         )
         delivered_agents = delivering_agents[delivering_agents_completion]
 
@@ -367,7 +314,7 @@ class WarehouseHard(MultiAgentEnv):
         agent_availabilities[delivering_agents_mask] = 0
 
         agent_delivery_target_positions = np.full(
-            (self._num_agents, 2), self._world_dimension / 2.0, dtype=np.float32
+            (self._num_agents, 2), self._area_dimension // 2, dtype=np.int32
         )
         agent_delivery_target_positions[delivering_agents_mask] = self._delivery_point_positions[
             self._agent_delivery_targets[delivering_agents_mask]
@@ -386,14 +333,13 @@ class WarehouseHard(MultiAgentEnv):
 
         observations = {
             str(i): {
-                "self_position": self._agent_positions[i] - BORDER_WIDTH,
+                "self_position": self._agent_positions[i],
                 "self_availability": agent_availabilities[np.newaxis, i],
-                "self_delivery_target": agent_delivery_target_positions[i] - BORDER_WIDTH,
-                "other_positions": np.delete(self._agent_positions, i, axis=0) - BORDER_WIDTH,
+                "self_delivery_target": agent_delivery_target_positions[i],
+                "other_positions": np.delete(self._agent_positions, i, axis=0),
                 "other_availabilities": np.delete(agent_availabilities, i, axis=0),
-                "other_delivery_targets": np.delete(agent_delivery_target_positions, 1, axis=0)
-                - BORDER_WIDTH,
-                "requests": requests - BORDER_WIDTH,
+                "other_delivery_targets": np.delete(agent_delivery_target_positions, 1, axis=0),
+                "requests": requests,
             }
             for i in range(self._num_agents)
         }
@@ -412,20 +358,46 @@ class WarehouseHard(MultiAgentEnv):
         from gym.envs.classic_control import rendering
 
         if mode != "human":
-            super(WarehouseHard, self).render(mode=mode)
+            super(Warehouse, self).render(mode=mode)
 
         if self._viewer is None:
             self._viewer = rendering.Viewer(
-                self._viewport_dimension_px, self._viewport_dimension_px
+                self._viewport_dimension_PX, self._viewport_dimension_PX
             )
 
-        for body in self._border_bodies:
-            for fixture in body.fixtures:
-                self._viewer.draw_polygon(
-                    [fixture.body.transform * v * PIXELS_PER_METER for v in fixture.shape.vertices],
-                    color=BORDER_COLOR,
-                )
+        # Border
+        self._viewer.draw_polygon(
+            [
+                (0.0, 0.0),
+                ((self._area_dimension + 2 * BORDER_WIDTH) * PIXELS_PER_METER, 0.0),
+                (
+                    (self._area_dimension + 2 * BORDER_WIDTH) * PIXELS_PER_METER,
+                    (self._area_dimension + 2 * BORDER_WIDTH) * PIXELS_PER_METER,
+                ),
+                (0.0, (self._area_dimension + 2 * BORDER_WIDTH) * PIXELS_PER_METER),
+            ],
+            color=BORDER_COLOR,
+        )
+        self._viewer.draw_polygon(
+            [
+                (BORDER_WIDTH * PIXELS_PER_METER, BORDER_WIDTH * PIXELS_PER_METER),
+                (
+                    (self._area_dimension + BORDER_WIDTH) * PIXELS_PER_METER,
+                    BORDER_WIDTH * PIXELS_PER_METER,
+                ),
+                (
+                    (self._area_dimension + BORDER_WIDTH) * PIXELS_PER_METER,
+                    (self._area_dimension + BORDER_WIDTH) * PIXELS_PER_METER,
+                ),
+                (
+                    BORDER_WIDTH * PIXELS_PER_METER,
+                    (self._area_dimension + BORDER_WIDTH) * PIXELS_PER_METER,
+                ),
+            ],
+            color=BACKGROUND_COLOR,
+        )
 
+        # Pickup points
         for idx, point in enumerate(self._pickup_point_positions):
             color = (
                 PICKUP_POINT_COLORS[1]
@@ -434,14 +406,27 @@ class WarehouseHard(MultiAgentEnv):
             )
             self._viewer.draw_polygon(
                 [
-                    ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] - 0.4) * PIXELS_PER_METER,),
-                    ((point[0] + 0.4) * PIXELS_PER_METER, (point[1] - 0.4) * PIXELS_PER_METER,),
-                    ((point[0] + 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
-                    ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
                 ],
                 color=color,
             )
 
+        # Delivery points
         for idx, point in enumerate(self._delivery_point_positions):
             color = (
                 DELIVERY_POINT_COLORS[1]
@@ -450,48 +435,61 @@ class WarehouseHard(MultiAgentEnv):
             )
             self._viewer.draw_polygon(
                 [
-                    ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] - 0.4) * PIXELS_PER_METER,),
-                    ((point[0] + 0.4) * PIXELS_PER_METER, (point[1] - 0.4) * PIXELS_PER_METER,),
-                    ((point[0] + 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
-                    ((point[0] - 0.4) * PIXELS_PER_METER, (point[1] + 0.4) * PIXELS_PER_METER,),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.1) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.9) * PIXELS_PER_METER,
+                    ),
                 ],
                 color=color,
             )
             self._viewer.draw_polygon(
                 [
-                    ((point[0] - 0.3) * PIXELS_PER_METER, (point[1] - 0.3) * PIXELS_PER_METER,),
-                    ((point[0] + 0.3) * PIXELS_PER_METER, (point[1] - 0.3) * PIXELS_PER_METER,),
-                    ((point[0] + 0.3) * PIXELS_PER_METER, (point[1] + 0.3) * PIXELS_PER_METER,),
-                    ((point[0] - 0.3) * PIXELS_PER_METER, (point[1] + 0.3) * PIXELS_PER_METER,),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                    ),
+                    (
+                        (point[0] + BORDER_WIDTH + 0.2) * PIXELS_PER_METER,
+                        (point[1] + BORDER_WIDTH + 0.8) * PIXELS_PER_METER,
+                    ),
                 ],
                 color=DELIVERY_POINT_COLORS[0],
             )
 
-        for idx, body in enumerate(self._agent_bodies):
-            for fixture in body.fixtures:
+        # Agents
+        for idx, point in enumerate(self._agent_positions):
+            transform = (
+                point.astype(np.float32) + np.array([0.5, 0.5], dtype=np.float32) + BORDER_WIDTH
+            )
+            self._viewer.draw_circle(
+                AGENT_RADIUS * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
+            ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
+            self._viewer.draw_circle(
+                AGENT_RADIUS * 3 / 4 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
+            ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
+            if self._agent_delivery_targets[idx] > -1:
                 self._viewer.draw_circle(
-                    fixture.shape.radius * PIXELS_PER_METER, 30, color=AGENT_COLORS[0]
-                ).add_attr(
-                    rendering.Transform(
-                        translation=fixture.body.transform * fixture.shape.pos * PIXELS_PER_METER
-                    )
-                )
-                self._viewer.draw_circle(
-                    (fixture.shape.radius) * 3 / 4 * PIXELS_PER_METER, 30, color=AGENT_COLORS[1]
-                ).add_attr(
-                    rendering.Transform(
-                        translation=fixture.body.transform * fixture.shape.pos * PIXELS_PER_METER
-                    )
-                )
-                if self._agent_delivery_targets[idx] > -1:
-                    self._viewer.draw_circle(
-                        (fixture.shape.radius) / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[2]
-                    ).add_attr(
-                        rendering.Transform(
-                            translation=fixture.body.transform
-                            * fixture.shape.pos
-                            * PIXELS_PER_METER
-                        )
-                    )
+                    AGENT_RADIUS / 2 * PIXELS_PER_METER, 30, color=AGENT_COLORS[2]
+                ).add_attr(rendering.Transform(translation=transform * PIXELS_PER_METER))
 
         self._viewer.render()
