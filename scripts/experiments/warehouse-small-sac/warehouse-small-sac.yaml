@@ -1,4 +1,4 @@
-warehouse-small:
+warehouse-small-sac:
     env: WarehouseSmall-v0
     run: SAC
     stop:

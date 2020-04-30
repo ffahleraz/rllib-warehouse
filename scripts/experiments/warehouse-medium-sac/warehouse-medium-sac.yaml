@@ -1,4 +1,4 @@
-warehouse-medium:
+warehouse-medium-sac:
     env: WarehouseMedium-v0
     run: SAC
     stop:
