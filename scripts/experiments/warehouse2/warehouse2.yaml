@@ -2,30 +2,32 @@ warehouse-2-sac:
     env: Warehouse2-v0
     run: SAC
     stop:
-        training_iteration: 3000
+        training_iteration: 6000
     checkpoint_freq: 100
     checkpoint_at_end: True
     config:
         Q_model: 
             hidden_activation: relu
             hidden_layer_sizes: 
+                - 512
                 - 256
                 - 256
                 - 64
         policy_model:
             hidden_activation: relu
             hidden_layer_sizes: 
+                - 512
                 - 256
                 - 256
                 - 64
-        horizon: 2000
-        soft_horizon: True
-        no_done_at_end: True
+        # horizon: 1200
+        # soft_horizon: True
+        # no_done_at_end: True
         normalize_actions: False
-        timesteps_per_iteration: 2000
-        learning_starts: 20000
-        buffer_size: 400000
+        timesteps_per_iteration: 400
+        learning_starts: 8000
+        buffer_size: 200000
         prioritized_replay: False
         target_network_update_freq: 1
         num_gpus: 1
-        num_workers: 4
+        num_workers: 6
