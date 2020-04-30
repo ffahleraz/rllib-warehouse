@@ -273,7 +273,7 @@ class Warehouse(MultiAgentEnv):
 
         # Update agent positions
         occupancy_grid = np.zeros((self._area_dimension, self._area_dimension), dtype=np.bool)
-        occupancy_grid[self._agent_positions[:0], self._agent_positions[:1]] = True
+        occupancy_grid[self._agent_positions[:, 0], self._agent_positions[:, 1]] = True
         invalid_moves: Set[Tuple[int, int, int, int]] = set([])
 
         for key, action in action_dict.items():
