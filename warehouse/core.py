@@ -25,6 +25,9 @@ __all__ = ["Warehouse"]
 #         point that is already being served)
 #   - Assumptions:
 #       - NUM_REQUESTS >= NUM_AGENTS
+#   - Observations:
+#       - Each agent will get NUM_REQUESTS positions & delivery targets of the other agents, if
+#         NUM_AGENTS < NUM_REQUESTS, the rest will be NULL_DATA
 #   - Frame of references:
 #       - AREA is the playable area (excluding borders)
 #       - All positions are in the frame of AREA
@@ -64,7 +67,7 @@ BORDER_COLOR: Tuple[float, float, float] = (0.5, 0.5, 0.5)
 BACKGROUND_COLOR: Tuple[float, float, float] = (1.0, 1.0, 1.0)
 
 ANIMATE_FRAMES_PER_STEP: int = 10
-ANIMATE_STEPS_PER_SECOND: float = 4.0
+ANIMATE_STEPS_PER_SECOND: float = 6.0
 
 
 class Warehouse(MultiAgentEnv):
@@ -83,6 +86,8 @@ class Warehouse(MultiAgentEnv):
     ) -> None:
         super(Warehouse, self).__init__()
 
+        assert num_agents <= num_requests
+
         # Constants
         self._area_dimension: int = area_dimension
         self._pickup_racks_arrangement: List[int] = pickup_racks_arrangement
@@ -99,17 +104,23 @@ class Warehouse(MultiAgentEnv):
             self._area_dimension + 2 * BORDER_WIDTH
         ) * PIXELS_PER_METER
 
+        self._null_position: int = self._area_dimension // 2
+        self._null_availability: int = 0
+
         # Internal specs
-        self.num_agents = self._num_agents
-        self.num_requests = self._num_requests
-        self.animate_frames_per_step = ANIMATE_FRAMES_PER_STEP
-        self.animate_steps_per_second = ANIMATE_STEPS_PER_SECOND
+        self.num_agents: int = self._num_agents
+        self.num_requests: int = self._num_requests
+        self.animate_frames_per_step: int = ANIMATE_FRAMES_PER_STEP
+        self.animate_steps_per_second: float = ANIMATE_STEPS_PER_SECOND
 
         # Gym specs
         self.reward_range = (0.0, 1.0)
         self.action_space = gym.spaces.Discrete(len(MOVES))
         self.observation_space = gym.spaces.Dict(
             {
+                "num_agents": gym.spaces.Box(
+                    low=1, high=self._num_requests, shape=(1,), dtype=np.int32,
+                ),
                 "self_position": gym.spaces.Box(
                     low=0, high=self._area_dimension, shape=(2,), dtype=np.int32,
                 ),
@@ -120,14 +131,14 @@ class Warehouse(MultiAgentEnv):
                 "other_positions": gym.spaces.Box(
                     low=0,
                     high=self._area_dimension,
-                    shape=(self._num_agents - 1, 2),
+                    shape=(self._num_requests - 1, 2),
                     dtype=np.int32,
                 ),
-                "other_availabilities": gym.spaces.MultiBinary(self._num_agents - 1),
+                "other_availabilities": gym.spaces.MultiBinary(self._num_requests - 1),
                 "other_delivery_targets": gym.spaces.Box(
                     low=0,
                     high=self._area_dimension,
-                    shape=(self._num_agents - 1, 2),
+                    shape=(self._num_requests - 1, 2),
                     dtype=np.int32,
                 ),
                 "requests": gym.spaces.Box(
@@ -210,9 +221,18 @@ class Warehouse(MultiAgentEnv):
         self._pickup_point_timers[new_waiting_pickup_points] = self._pickup_wait_duration
 
         # Compute observations
-        agent_availabilities = np.ones(self._num_agents, dtype=np.int8)
+        num_agents = np.full(1, self._num_agents, dtype=np.int32)
+        agent_positions = np.vstack(
+            (
+                self._agent_positions,
+                np.full(
+                    (self._num_requests - self._num_agents, 2), self._null_position, dtype=np.int32
+                ),
+            )
+        )
+        agent_availabilities = np.full(self._num_requests, self._null_availability, dtype=np.int8)
         agent_delivery_target_positions = np.full(
-            (self._num_agents, 2), self._area_dimension // 2, dtype=np.int32
+            (self._num_requests, 2), self._null_position, dtype=np.int32
         )
 
         waiting_pickup_points_mask = self._pickup_point_targets > -1
@@ -227,10 +247,11 @@ class Warehouse(MultiAgentEnv):
         )
         return {
             str(i): {
-                "self_position": self._agent_positions[i],
+                "num_agents": num_agents,
+                "self_position": agent_positions[i],
                 "self_availability": agent_availabilities[np.newaxis, i],
                 "self_delivery_target": agent_delivery_target_positions[i],
-                "other_positions": np.delete(self._agent_positions, i, axis=0),
+                "other_positions": np.delete(agent_positions, i, axis=0),
                 "other_availabilities": np.delete(agent_availabilities, i, axis=0),
                 "other_delivery_targets": np.delete(agent_delivery_target_positions, i, axis=0),
                 "requests": requests,
@@ -347,16 +368,43 @@ class Warehouse(MultiAgentEnv):
         agent_rewards[delivered_agents] += DELIVERY_REWARD
 
         # Compute observations
-        delivering_agents_mask = self._agent_delivery_targets > -1
-        agent_availabilities = np.ones(self._num_agents, dtype=np.int8)
-        agent_availabilities[delivering_agents_mask] = 0
-
-        agent_delivery_target_positions = np.full(
-            (self._num_agents, 2), self._area_dimension // 2, dtype=np.int32
+        num_agents = np.full(1, self._num_agents, dtype=np.int32)
+        agent_positions = np.vstack(
+            (
+                self._agent_positions,
+                np.full(
+                    (self._num_requests - self._num_agents, 2), self._null_position, dtype=np.int32
+                ),
+            )
         )
-        agent_delivery_target_positions[delivering_agents_mask] = self._delivery_point_positions[
-            self._agent_delivery_targets[delivering_agents_mask]
-        ]
+
+        delivering_agents_mask = self._agent_delivery_targets > -1
+
+        active_agent_availabilities = np.ones(self._num_agents, dtype=np.int8)
+        active_agent_availabilities[delivering_agents_mask] = 0
+        agent_availabilities = np.concatenate(
+            (
+                active_agent_availabilities,
+                np.full(
+                    self._num_requests - self._num_agents, self._null_availability, dtype=np.int8
+                ),
+            )
+        )
+
+        active_agent_delivery_target_positions = np.full(
+            (self._num_agents, 2), self._null_position, dtype=np.int32
+        )
+        active_agent_delivery_target_positions[
+            delivering_agents_mask
+        ] = self._delivery_point_positions[self._agent_delivery_targets[delivering_agents_mask]]
+        agent_delivery_target_positions = np.vstack(
+            (
+                active_agent_delivery_target_positions,
+                np.full(
+                    (self._num_requests - self._num_agents, 2), self._null_position, dtype=np.int32
+                ),
+            )
+        )
 
         waiting_pickup_points_mask = self._pickup_point_targets > -1
         requests = self._pickup_point_positions[waiting_pickup_points_mask]
@@ -366,15 +414,16 @@ class Warehouse(MultiAgentEnv):
                 self._delivery_point_positions[
                     self._pickup_point_targets[waiting_pickup_points_mask]
                 ],
-            ),
+            )
         )
 
         observations = {
             str(i): {
-                "self_position": self._agent_positions[i],
+                "num_agents": num_agents,
+                "self_position": agent_positions[i],
                 "self_availability": agent_availabilities[np.newaxis, i],
                 "self_delivery_target": agent_delivery_target_positions[i],
-                "other_positions": np.delete(self._agent_positions, i, axis=0),
+                "other_positions": np.delete(agent_positions, i, axis=0),
                 "other_availabilities": np.delete(agent_availabilities, i, axis=0),
                 "other_delivery_targets": np.delete(agent_delivery_target_positions, 1, axis=0),
                 "requests": requests,

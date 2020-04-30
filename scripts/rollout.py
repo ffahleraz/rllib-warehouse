@@ -11,34 +11,36 @@ from ray.rllib.agents.sac.sac import SACTrainer
 from ray.tune.registry import register_env
 
 from warehouse import (
-    Warehouse2,
-    Warehouse4,
-    Warehouse6,
-    Warehouse8,
-    Warehouse10,
-    Warehouse12,
-    Warehouse14,
-    Warehouse16,
+    WarehouseSmall,
+    WarehouseMedium,
+    WarehouseLarge,
 )
 
 
-def main(trial_dir: str, iteration: int, render: bool) -> None:
+def main(trial_dir: str, num_agents: int, iteration: int, render: bool) -> None:
     ray.init()
 
     params = json.load(open(os.path.join(trial_dir, "params.json"), "rb"))
 
-    env_map: Dict[str, Type] = {
-        "Warehouse2-v0": Warehouse2,
-        "Warehouse4-v0": Warehouse4,
-        "Warehouse6-v0": Warehouse6,
-        "Warehouse8-v0": Warehouse8,
-        "Warehouse10-v0": Warehouse10,
-        "Warehouse12-v0": Warehouse12,
-        "Warehouse14-v0": Warehouse14,
-        "Warehouse16-v0": Warehouse16,
+    # env_map: Dict[str, Type] = {
+    #     "Warehouse2-v0": Warehouse2,
+    #     "Warehouse4-v0": Warehouse4,
+    #     "Warehouse6-v0": Warehouse6,
+    #     "Warehouse8-v0": Warehouse8,
+    #     "Warehouse10-v0": Warehouse10,
+    #     "Warehouse12-v0": Warehouse12,
+    #     "Warehouse14-v0": Warehouse14,
+    #     "Warehouse16-v0": Warehouse16,
+    # }
+    # for key, val in env_map.items():
+    #     register_env(key, lambda _: val())
+    env_type_map: Dict[str, Type] = {
+        "WarehouseSmall-v0": WarehouseSmall,
+        "WarehouseMedium-v0": WarehouseMedium,
+        "WarehouseLarge-v0": WarehouseLarge,
     }
-    for key, val in env_map.items():
-        register_env(key, lambda _: val())
+    for key, val in env_type_map.items():
+        register_env(key, lambda _: val(1))
 
     checkpoint_paths = glob.glob(os.path.join(trial_dir, "checkpoint_*"))
     checkpoint_iterations = sorted(
@@ -63,7 +65,9 @@ def main(trial_dir: str, iteration: int, render: bool) -> None:
             f"Checkpoint at iteration {iteration} doesn't exist, loading the closest one at {iteration_choice} instead."
         )
 
-    env = env_map[params["env"]]()
+    env_type = env_type_map[params["env"]]
+    env = env_type(num_agents)
+
     observations = env.reset()
 
     acc_rewards = [0.0 for i in range(len(observations))]
@@ -93,6 +97,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "trial_dir", type=str, help="path to the folder of the saved training trial"
     )
+    parser.add_argument("num_agents", type=int, help="number of agents")
     parser.add_argument(
         "-i",
         "--iteration",
@@ -104,4 +109,9 @@ if __name__ == "__main__":
         "-r", "--render", help="render the environment on each step", action="store_true"
     )
     args = parser.parse_args()
-    main(trial_dir=args.trial_dir, iteration=args.iteration, render=args.render)
+    main(
+        trial_dir=args.trial_dir,
+        num_agents=args.num_agents,
+        iteration=args.iteration,
+        render=args.render,
+    )

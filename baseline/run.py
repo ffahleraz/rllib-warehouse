@@ -1,39 +1,29 @@
 import time
 import argparse
-from typing import Dict, Deque
+from typing import Dict, Deque, Type
 from collections import deque
 
 from warehouse import (
-    Warehouse,
-    Warehouse2,
-    Warehouse4,
-    Warehouse6,
-    Warehouse8,
-    Warehouse10,
-    Warehouse12,
-    Warehouse14,
-    Warehouse16,
+    WarehouseSmall,
+    WarehouseMedium,
+    WarehouseLarge,
 )
 
 from solvers import WarehouseSolver, WarehouseRandomSolver, WarehouseGreedySolver
 
 
-def main(solver_type: str, num_agents: int, animate_rendering: bool) -> None:
+def main(solver_type: str, env_size: str, num_agents: int, animate_rendering: bool) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     think_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
 
-    env_map: Dict[int, Warehouse] = {
-        2: Warehouse2(),
-        4: Warehouse4(),
-        6: Warehouse6(),
-        8: Warehouse8(),
-        10: Warehouse10(),
-        12: Warehouse12(),
-        14: Warehouse14(),
-        16: Warehouse16(),
+    env_type_map: Dict[str, Type] = {
+        "small": WarehouseSmall,
+        "medium": WarehouseMedium,
+        "large": WarehouseLarge,
     }
-    env = env_map[num_agents]
+    env_type = env_type_map[env_size]
+    env = env_type(num_agents)
 
     solver_map: Dict[str, WarehouseSolver] = {
         "random": WarehouseRandomSolver(action_space=env.action_space),
@@ -92,10 +82,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("solver_type", type=str, choices=["random", "greedy"], help="solver type")
     parser.add_argument(
-        "num_agents", type=int, choices=[2, 4, 6, 8, 10, 12, 14, 16], help="number of agents"
+        "env_size", type=str, choices=["small", "medium", "large"], help="environment size"
     )
+    parser.add_argument("num_agents", type=int, help="number of agents")
     parser.add_argument(
         "--animate", "-a", action="store_true", help="whether to animate env rendering"
     )
     args = parser.parse_args()
-    main(solver_type=args.solver_type, num_agents=args.num_agents, animate_rendering=args.animate)
+    main(
+        solver_type=args.solver_type,
+        env_size=args.env_size,
+        num_agents=args.num_agents,
+        animate_rendering=args.animate,
+    )

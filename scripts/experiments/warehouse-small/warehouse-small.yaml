@@ -1,0 +1,35 @@
+warehouse-small:
+    env: WarehouseSmall-v0
+    run: SAC
+    stop:
+        training_iteration: 8000
+    # checkpoint_freq: 100
+    checkpoint_freq: 10
+    checkpoint_at_end: true
+    config:
+        Q_model: 
+            hidden_activation: relu
+            hidden_layer_sizes: 
+                - 256
+                - 256
+                - 64
+        policy_model:
+            hidden_activation: relu
+            hidden_layer_sizes: 
+                - 256
+                - 256
+                - 64
+        tau: 1.0
+        soft_horizon: true
+        no_done_at_end: true
+        normalize_actions: false
+        target_network_update_freq: 1
+        train_batch_size: 256
+        timesteps_per_iteration: 400
+        learning_starts: 100000
+        buffer_size: 1000000
+        prioritized_replay: true
+        # num_gpus: 1
+        # num_workers: 4
+        num_gpus: 0
+        num_workers: 1
