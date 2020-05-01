@@ -22,18 +22,6 @@ def main(trial_dir: str, num_agents: int, iteration: int, render: bool) -> None:
 
     params = json.load(open(os.path.join(trial_dir, "params.json"), "rb"))
 
-    # env_map: Dict[str, Type] = {
-    #     "Warehouse2-v0": Warehouse2,
-    #     "Warehouse4-v0": Warehouse4,
-    #     "Warehouse6-v0": Warehouse6,
-    #     "Warehouse8-v0": Warehouse8,
-    #     "Warehouse10-v0": Warehouse10,
-    #     "Warehouse12-v0": Warehouse12,
-    #     "Warehouse14-v0": Warehouse14,
-    #     "Warehouse16-v0": Warehouse16,
-    # }
-    # for key, val in env_map.items():
-    #     register_env(key, lambda _: val())
     env_type_map: Dict[str, Type] = {
         "WarehouseSmall-v0": WarehouseSmall,
         "WarehouseMedium-v0": WarehouseMedium,

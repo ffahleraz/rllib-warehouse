@@ -17,8 +17,11 @@ __all__ = [
 
 
 class WarehouseSmall(Warehouse):
+    max_num_agents = 4
+
     def __init__(self, num_agents: int) -> None:
-        assert 1 <= num_agents <= 4
+        self.max_num_agents = 4
+        assert 1 <= num_agents <= self.max_num_agents
         super(WarehouseSmall, self).__init__(
             num_agents=num_agents,
             num_requests=4,
@@ -26,6 +29,36 @@ class WarehouseSmall(Warehouse):
             pickup_racks_arrangement=[4, 8],
             episode_duration=240,
             pickup_wait_duration=24,
+        )
+
+
+class WarehouseMedium(Warehouse):
+    max_num_agents = 9
+
+    def __init__(self, num_agents: int) -> None:
+        assert 1 <= num_agents <= self.max_num_agents
+        super(WarehouseMedium, self).__init__(
+            num_agents=num_agents,
+            num_requests=9,
+            area_dimension=16,
+            pickup_racks_arrangement=[4, 8, 12],
+            episode_duration=320,
+            pickup_wait_duration=32,
+        )
+
+
+class WarehouseLarge(Warehouse):
+    max_num_agents = 16
+
+    def __init__(self, num_agents: int) -> None:
+        assert 1 <= num_agents <= self.max_num_agents
+        super(WarehouseLarge, self).__init__(
+            num_agents=num_agents,
+            num_requests=16,
+            area_dimension=20,
+            pickup_racks_arrangement=[4, 8, 12, 16],
+            episode_duration=400,
+            pickup_wait_duration=40,
         )
 
 
@@ -38,20 +71,7 @@ class WarehouseSmallRandom(WarehouseSmall):
         return super(WarehouseSmallRandom, self).reset()
 
     def _get_random_num_agents(self) -> int:
-        return np.random.randint(1, 5)
-
-
-class WarehouseMedium(Warehouse):
-    def __init__(self, num_agents: int) -> None:
-        assert 1 <= num_agents <= 9
-        super(WarehouseMedium, self).__init__(
-            num_agents=num_agents,
-            num_requests=9,
-            area_dimension=16,
-            pickup_racks_arrangement=[4, 8, 12],
-            episode_duration=320,
-            pickup_wait_duration=32,
-        )
+        return np.random.randint(1, WarehouseSmallRandom.max_num_agents + 1)
 
 
 class WarehouseMediumRandom(WarehouseMedium):
@@ -63,20 +83,7 @@ class WarehouseMediumRandom(WarehouseMedium):
         return super(WarehouseMediumRandom, self).reset()
 
     def _get_random_num_agents(self) -> int:
-        return np.random.randint(1, 10)
-
-
-class WarehouseLarge(Warehouse):
-    def __init__(self, num_agents: int) -> None:
-        assert 1 <= num_agents <= 16
-        super(WarehouseLarge, self).__init__(
-            num_agents=num_agents,
-            num_requests=16,
-            area_dimension=20,
-            pickup_racks_arrangement=[4, 8, 12, 16],
-            episode_duration=400,
-            pickup_wait_duration=40,
-        )
+        return np.random.randint(1, WarehouseMediumRandom.max_num_agents + 1)
 
 
 class WarehouseLargeRandom(WarehouseLarge):
@@ -88,4 +95,4 @@ class WarehouseLargeRandom(WarehouseLarge):
         return super(WarehouseLargeRandom, self).reset()
 
     def _get_random_num_agents(self) -> int:
-        return np.random.randint(1, 17)
+        return np.random.randint(1, WarehouseLargeRandom.max_num_agents + 1)
