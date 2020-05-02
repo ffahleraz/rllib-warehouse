@@ -86,7 +86,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("num_agents", type=int, help="number of agents")
     parser.add_argument(
-        "--animate", "-a", action="store_true", help="whether to animate env rendering"
+        "-a", "--animate", action="store_true", help="whether to animate env rendering"
     )
     args = parser.parse_args()
     main(

@@ -62,6 +62,9 @@ def main(trial_dir: str, num_agents: int, iteration: int, render: bool) -> None:
     done = False
     step_count = 0
     while not done:
+        if render:
+            env.render(animate=True)
+
         action_dict = {
             f"{i}": trainer.compute_action(observations[f"{i}"]) for i in range(env.num_agents)
         }
@@ -74,10 +77,6 @@ def main(trial_dir: str, num_agents: int, iteration: int, render: bool) -> None:
         print("Rewards:", *acc_rewards)
 
         step_count += 1
-
-        if render:
-            env.render()
-            time.sleep(0.1)
 
 
 if __name__ == "__main__":

@@ -8,13 +8,14 @@ warehouse-medium-sac:
     config:
         Q_model: 
             hidden_activation: relu
-            hidden_layer_sizes: [512, 256, 64, 32]
+            hidden_layer_sizes: [512, 512, 256, 256, 64, 64]
         policy_model:
             hidden_activation: relu
-            hidden_layer_sizes: [512, 256, 64, 32]
+            hidden_layer_sizes: [512, 512, 256, 256, 64, 64]
         tau: 1.0
         gamma: 0.99
-        lr: 0.00001
+        lr: 0.0001
+        target_entropy: 0.935
         normalize_actions: false
         target_network_update_freq: 8000
         train_batch_size: 64
@@ -22,4 +23,4 @@ warehouse-medium-sac:
         learning_starts: 100000
         prioritized_replay: true
         num_gpus: 1
-        num_workers: 2
+        num_workers: 0
