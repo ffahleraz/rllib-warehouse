@@ -22,9 +22,9 @@ warehouse-small-sac:
         soft_horizon: true
         no_done_at_end: true
         normalize_actions: false
-        target_network_update_freq: 1
-        train_batch_size: 256
-        timesteps_per_iteration: 400
+        target_network_update_freq: 8000
+        train_batch_size: 64
+        timesteps_per_iteration: 4
         learning_starts: 100000
         buffer_size: 1000000
         prioritized_replay: true

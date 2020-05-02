@@ -2,31 +2,24 @@ warehouse-medium-sac:
     env: WarehouseMedium-v0
     run: SAC
     stop:
-        training_iteration: 6000
-    checkpoint_freq: 100
+        timesteps_total: 8000000
+    checkpoint_freq: 200
     checkpoint_at_end: true
     config:
         Q_model: 
             hidden_activation: relu
-            hidden_layer_sizes: 
-                - 512
-                - 256
-                - 64
+            hidden_layer_sizes: [512, 256, 64, 32]
         policy_model:
             hidden_activation: relu
-            hidden_layer_sizes: 
-                - 512
-                - 256
-                - 64
+            hidden_layer_sizes: [512, 256, 64, 32]
         tau: 1.0
-        soft_horizon: true
-        no_done_at_end: true
+        gamma: 0.99
+        lr: 0.00001
         normalize_actions: false
-        target_network_update_freq: 1
-        train_batch_size: 256
-        timesteps_per_iteration: 400
+        target_network_update_freq: 8000
+        train_batch_size: 64
+        timesteps_per_iteration: 4
         learning_starts: 100000
-        buffer_size: 1000000
         prioritized_replay: true
         num_gpus: 1
-        num_workers: 4
+        num_workers: 2
