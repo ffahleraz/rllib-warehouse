@@ -28,7 +28,7 @@ class WarehouseSmall(Warehouse):
             area_dimension=12,
             pickup_racks_arrangement=[4, 8],
             episode_duration=240,
-            pickup_wait_duration=240,
+            pickup_wait_duration=24,
         )
 
 
@@ -43,7 +43,7 @@ class WarehouseMedium(Warehouse):
             area_dimension=16,
             pickup_racks_arrangement=[4, 8, 12],
             episode_duration=320,
-            pickup_wait_duration=320,
+            pickup_wait_duration=32,
         )
 
 
@@ -58,7 +58,7 @@ class WarehouseLarge(Warehouse):
             area_dimension=20,
             pickup_racks_arrangement=[4, 8, 12, 16],
             episode_duration=400,
-            pickup_wait_duration=400,
+            pickup_wait_duration=40,
         )
 
 
