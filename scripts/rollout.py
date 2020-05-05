@@ -49,9 +49,12 @@ def main(trial_dir: str, num_agents: int, iteration: int, render: bool) -> None:
     if iteration == -1:
         print(f"Loading the lastest checkpoint at iteration {iteration_choice}.")
     else:
-        print(
-            f"Checkpoint at iteration {iteration} doesn't exist, loading the closest one at {iteration_choice} instead."
-        )
+        if iteration in checkpoint_iterations:
+            print(f"Loading the selected checkpoint at iteration {iteration_choice}.")
+        else:
+            print(
+                f"Checkpoint at iteration {iteration} doesn't exist, loading the closest one at {iteration_choice} instead."
+            )
 
     env_type = env_type_map[params["env"]]
     env = env_type(num_agents)
@@ -73,10 +76,16 @@ def main(trial_dir: str, num_agents: int, iteration: int, render: bool) -> None:
         acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(env.num_agents)]
         done = dones["__all__"]
 
-        print(f"\n=== Step {step_count} ===")
-        print("Rewards:", *acc_rewards)
+        if render:
+            print(f"\n=== Step {step_count} ===")
+            print("Rewards:", *acc_rewards)
+            print(f"Total: {sum(acc_rewards)}, Per Agent: {sum(acc_rewards) / len(acc_rewards)}")
 
         step_count += 1
+
+    print(f"\n=== Done ({step_count} steps) ===")
+    print("Rewards:", *acc_rewards)
+    print(f"Total: {sum(acc_rewards)}, Per Agent: {sum(acc_rewards) / len(acc_rewards)}")
 
 
 if __name__ == "__main__":

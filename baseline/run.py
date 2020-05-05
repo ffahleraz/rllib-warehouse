@@ -12,7 +12,7 @@ from warehouse import (
 from solvers import WarehouseSolver, WarehouseRandomSolver, WarehouseGreedySolver
 
 
-def main(solver_type: str, env_size: str, num_agents: int, animate_rendering: bool) -> None:
+def main(solver_type: str, env_size: str, num_agents: int, render: bool) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     think_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
@@ -27,7 +27,9 @@ def main(solver_type: str, env_size: str, num_agents: int, animate_rendering: bo
 
     solver_map: Dict[str, WarehouseSolver] = {
         "random": WarehouseRandomSolver(action_space=env.action_space),
-        "greedy": WarehouseGreedySolver(num_agents=env.num_agents, num_requests=env.num_requests),
+        "greedy": WarehouseGreedySolver(
+            num_agents=env.num_agents, num_requests=env.num_requests, action_space=env.action_space
+        ),
     }
     solver = solver_map[solver_type]
 
@@ -39,16 +41,12 @@ def main(solver_type: str, env_size: str, num_agents: int, animate_rendering: bo
     done = False
     step_count = 0
     while not done:
-        if animate_rendering:
+        if render:
             start_time = time.time()
             env.render(animate=True)
             render_time_buffer.append(
                 (1.0 / (time.time() - start_time)) * env.animate_frames_per_step
             )
-        else:
-            start_time = time.time()
-            env.render()
-            render_time_buffer.append(1.0 / (time.time() - start_time))
 
         start_time = time.time()
         action_dict = solver.compute_action(observations)
@@ -64,18 +62,19 @@ def main(solver_type: str, env_size: str, num_agents: int, animate_rendering: bo
         acc_rewards = [acc_rewards[i] + rewards[f"{i}"] for i in range(env.num_agents)]
         done = dones["__all__"]
 
-        print(f"\n=== Step {step_count} ===")
-        print("Rewards:", *acc_rewards)
-        if animate_rendering:
+        if render:
+            print(f"\n=== Step {step_count} ===")
+            print("Rewards:", *acc_rewards)
+            print(f"Total: {sum(acc_rewards)}, Per Agent: {sum(acc_rewards) / len(acc_rewards)}")
             print(
                 f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, think avg FPS: {sum(think_time_buffer) / len(think_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)} / {env.animate_frames_per_step * env.animate_steps_per_second}"
             )
-        else:
-            print(
-                f"Step avg FPS: {sum(step_time_buffer) / len(step_time_buffer)}, think avg FPS: {sum(think_time_buffer) / len(think_time_buffer)}, render avg FPS: {sum(render_time_buffer) / len(render_time_buffer)}"
-            )
 
         step_count += 1
+
+    print(f"\n=== Done ({step_count} steps) ===")
+    print("Rewards:", *acc_rewards)
+    print(f"Total: {sum(acc_rewards)}, Per Agent: {sum(acc_rewards) / len(acc_rewards)}")
 
 
 if __name__ == "__main__":
@@ -86,12 +85,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("num_agents", type=int, help="number of agents")
     parser.add_argument(
-        "-a", "--animate", action="store_true", help="whether to animate env rendering"
+        "-r", "--render", help="render the environment on each step", action="store_true"
     )
     args = parser.parse_args()
     main(
         solver_type=args.solver_type,
         env_size=args.env_size,
         num_agents=args.num_agents,
-        animate_rendering=args.animate,
+        render=args.render,
     )
