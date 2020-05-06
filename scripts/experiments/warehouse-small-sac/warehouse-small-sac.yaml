@@ -8,10 +8,10 @@ warehouse-small-sac:
     config:
         Q_model: 
             hidden_activation: relu
-            hidden_layer_sizes: [256, 256, 64]
+            hidden_layer_sizes: [256, 256]
         policy_model:
             hidden_activation: relu
-            hidden_layer_sizes: [256, 256, 64]
+            hidden_layer_sizes: [256, 256]
         tau: 1.0
         gamma: 0.99
         lr: 0.0001
