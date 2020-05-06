@@ -9,9 +9,9 @@ from ray.tune.registry import register_env
 from ray.tune.tune import run_experiments
 
 from warehouse import (
-    WarehouseSmallRandom,
-    WarehouseMediumRandom,
-    WarehouseLargeRandom,
+    WarehouseSmallTrain,
+    WarehouseMediumTrain,
+    WarehouseLargeTrain,
 )
 
 
@@ -27,9 +27,9 @@ def main(config_path: str) -> None:
     ray.init()
 
     env_type_map: Dict[str, Type] = {
-        "WarehouseSmall-v0": WarehouseSmallRandom,
-        "WarehouseMedium-v0": WarehouseMediumRandom,
-        "WarehouseLarge-v0": WarehouseLargeRandom,
+        "WarehouseSmall-v0": WarehouseSmallTrain,
+        "WarehouseMedium-v0": WarehouseMediumTrain,
+        "WarehouseLarge-v0": WarehouseLargeTrain,
     }
     for key, val in env_type_map.items():
         register_env(key, lambda _: val())

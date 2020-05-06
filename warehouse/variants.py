@@ -8,11 +8,11 @@ from warehouse.core import Warehouse
 
 __all__ = [
     "WarehouseSmall",
-    "WarehouseSmallRandom",
     "WarehouseMedium",
-    "WarehouseMediumRandom",
     "WarehouseLarge",
-    "WarehouseLargeRandom",
+    "WarehouseSmallTrain",
+    "WarehouseMediumTrain",
+    "WarehouseLargeTrain",
 ]
 
 
@@ -28,7 +28,7 @@ class WarehouseSmall(Warehouse):
             area_dimension=12,
             pickup_racks_arrangement=[4, 8],
             episode_duration=240,
-            pickup_wait_duration=24,
+            pickup_wait_duration=240,
         )
 
 
@@ -43,7 +43,7 @@ class WarehouseMedium(Warehouse):
             area_dimension=16,
             pickup_racks_arrangement=[4, 8, 12],
             episode_duration=320,
-            pickup_wait_duration=32,
+            pickup_wait_duration=320,
         )
 
 
@@ -58,41 +58,41 @@ class WarehouseLarge(Warehouse):
             area_dimension=20,
             pickup_racks_arrangement=[4, 8, 12, 16],
             episode_duration=400,
-            pickup_wait_duration=40,
+            pickup_wait_duration=400,
         )
 
 
-class WarehouseSmallRandom(WarehouseSmall):
+class WarehouseSmallTrain(WarehouseSmall):
     def __init__(self) -> None:
-        super(WarehouseSmallRandom, self).__init__(num_agents=self._get_random_num_agents())
+        super(WarehouseSmallTrain, self).__init__(num_agents=self._get_random_num_agents())
 
     def reset(self) -> Dict[str, gym.spaces.Dict]:
-        super(WarehouseSmallRandom, self).__init__(num_agents=self._get_random_num_agents())
-        return super(WarehouseSmallRandom, self).reset()
+        super(WarehouseSmallTrain, self).__init__(num_agents=self._get_random_num_agents())
+        return super(WarehouseSmallTrain, self).reset()
 
     def _get_random_num_agents(self) -> int:
-        return np.random.randint(1, WarehouseSmallRandom.max_num_agents + 1)
+        return np.random.randint(1, WarehouseSmallTrain.max_num_agents + 1)
 
 
-class WarehouseMediumRandom(WarehouseMedium):
+class WarehouseMediumTrain(WarehouseMedium):
     def __init__(self) -> None:
-        super(WarehouseMediumRandom, self).__init__(num_agents=self._get_random_num_agents())
+        super(WarehouseMediumTrain, self).__init__(num_agents=self._get_random_num_agents())
 
     def reset(self) -> Dict[str, gym.spaces.Dict]:
-        super(WarehouseMediumRandom, self).__init__(num_agents=self._get_random_num_agents())
-        return super(WarehouseMediumRandom, self).reset()
+        super(WarehouseMediumTrain, self).__init__(num_agents=self._get_random_num_agents())
+        return super(WarehouseMediumTrain, self).reset()
 
     def _get_random_num_agents(self) -> int:
-        return np.random.randint(1, WarehouseMediumRandom.max_num_agents + 1)
+        return np.random.randint(1, WarehouseMediumTrain.max_num_agents + 1)
 
 
-class WarehouseLargeRandom(WarehouseLarge):
+class WarehouseLargeTrain(WarehouseLarge):
     def __init__(self) -> None:
-        super(WarehouseLargeRandom, self).__init__(num_agents=self._get_random_num_agents())
+        super(WarehouseLargeTrain, self).__init__(num_agents=self._get_random_num_agents())
 
     def reset(self) -> Dict[str, gym.spaces.Dict]:
-        super(WarehouseLargeRandom, self).__init__(num_agents=self._get_random_num_agents())
-        return super(WarehouseLargeRandom, self).reset()
+        super(WarehouseLargeTrain, self).__init__(num_agents=self._get_random_num_agents())
+        return super(WarehouseLargeTrain, self).reset()
 
     def _get_random_num_agents(self) -> int:
-        return np.random.randint(1, WarehouseLargeRandom.max_num_agents + 1)
+        return np.random.randint(1, WarehouseLargeTrain.max_num_agents + 1)

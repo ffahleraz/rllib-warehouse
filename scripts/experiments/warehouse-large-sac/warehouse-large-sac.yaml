@@ -8,13 +8,15 @@ warehouse-large-sac:
     config:
         Q_model: 
             hidden_activation: relu
-            hidden_layer_sizes: [1024, 1024]
+            hidden_layer_sizes: [1024, 256]
         policy_model:
             hidden_activation: relu
-            hidden_layer_sizes: [1024, 1024]
+            hidden_layer_sizes: [1024, 256]
         tau: 1.0
         gamma: 0.99
         lr: 0.0001
+        soft_horizon: true
+        no_done_at_end: true
         target_entropy: 0.935
         normalize_actions: false
         target_network_update_freq: 8000
