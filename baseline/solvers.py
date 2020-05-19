@@ -7,10 +7,6 @@ import numpy as np
 import gym
 
 
-STEP_ROTATION_DEG: int = 45
-STEP_ROTATION_PROB: float = 0.0
-
-
 class WarehouseSolver(ABC):
     @abstractmethod
     def compute_action(
@@ -19,20 +15,13 @@ class WarehouseSolver(ABC):
         ...
 
 
-class WarehouseRandomSolver(WarehouseSolver):
-    def __init__(self, action_space: gym.spaces.Space) -> None:
-        self._action_space = action_space
-
-    def compute_action(
-        self, observations: Dict[str, Dict[str, np.ndarray]]
-    ) -> Dict[str, np.ndarray]:
-        return {str(i): self._action_space.sample() for i in range(len(observations))}
-
-
-class WarehouseGreedySolver(WarehouseSolver):
-    def __init__(self, num_agents: int, num_requests: int, action_space: gym.Space) -> None:
+class WarehouseRandomGreedySolver(WarehouseSolver):
+    def __init__(
+        self, num_agents: int, num_requests: int, random_action_prob: float, action_space: gym.Space
+    ) -> None:
         self._num_agents = num_agents
         self._num_requests = num_requests
+        self._random_action_prob = random_action_prob
         self._action_space = action_space
 
     def compute_action(
@@ -52,12 +41,7 @@ class WarehouseGreedySolver(WarehouseSolver):
             step = np.clip(target_position - observations[agent_id]["self_position"], -1, 1)
             future_position = observations[agent_id]["self_position"] + step
 
-            # # Rotate step direction if it conflicts with other agent's position to avoid stuc
-            # # due to collision
-            # if any(np.equal(future_position, observations[agent_id]["other_positions"]).all(1)):
-            #     step = self._rotate_step(step, STEP_ROTATION_DEG)
-
-            if np.random.uniform() < STEP_ROTATION_PROB:
+            if np.random.uniform() < self._random_action_prob:
                 action_dict[agent_id] = self._action_space.sample()
             else:
                 action_idxs = step + 1

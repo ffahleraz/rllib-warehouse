@@ -9,10 +9,10 @@ from warehouse import (
     WarehouseLarge,
 )
 
-from solvers import WarehouseSolver, WarehouseRandomSolver, WarehouseGreedySolver
+from solvers import WarehouseRandomGreedySolver
 
 
-def main(solver_type: str, env_size: str, num_agents: int, render: bool) -> None:
+def main(env_size: str, num_agents: int, random_action_prob: float, render: bool) -> None:
     step_time_buffer: Deque[float] = deque([], maxlen=10)
     think_time_buffer: Deque[float] = deque([], maxlen=10)
     render_time_buffer: Deque[float] = deque([], maxlen=10)
@@ -25,13 +25,12 @@ def main(solver_type: str, env_size: str, num_agents: int, render: bool) -> None
     env_type = env_type_map[env_size]
     env = env_type(num_agents)
 
-    solver_map: Dict[str, WarehouseSolver] = {
-        "random": WarehouseRandomSolver(action_space=env.action_space),
-        "greedy": WarehouseGreedySolver(
-            num_agents=env.num_agents, num_requests=env.num_requests, action_space=env.action_space
-        ),
-    }
-    solver = solver_map[solver_type]
+    solver = WarehouseRandomGreedySolver(
+        num_agents=env.num_agents,
+        num_requests=env.num_requests,
+        random_action_prob=random_action_prob,
+        action_space=env.action_space,
+    )
 
     observations = env.reset()
     for _, observation in observations.items():
@@ -79,18 +78,22 @@ def main(solver_type: str, env_size: str, num_agents: int, render: bool) -> None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("solver_type", type=str, choices=["random", "greedy"], help="solver type")
     parser.add_argument(
         "env_size", type=str, choices=["small", "medium", "large"], help="environment size"
     )
     parser.add_argument("num_agents", type=int, help="number of agents")
     parser.add_argument(
+        "random_action_prob",
+        type=float,
+        help="probability of the solver to take random action [0.0, 1.0]",
+    )
+    parser.add_argument(
         "-r", "--render", help="render the environment on each step", action="store_true"
     )
     args = parser.parse_args()
     main(
-        solver_type=args.solver_type,
         env_size=args.env_size,
         num_agents=args.num_agents,
+        random_action_prob=args.random_action_prob,
         render=args.render,
     )
